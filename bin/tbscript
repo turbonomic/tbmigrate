@@ -1,0 +1,9 @@
+#! /bin/bash
+
+prog=$(realpath "$0")
+dn=$(dirname "$prog")
+bn=$(basename "$prog")
+
+export TURBO_CREDENTIALS_FILE=$(realpath "$dn/../data/tbutil-credentials.json")
+
+exec "$dn/.exe/$bn" "$@"

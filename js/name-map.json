@@ -1,0 +1,130 @@
+{
+	"group_class_re": "^(Static)?(Ref)?(Meta)?Group$|^Cluster$",
+
+	/********************************************************************************************
+		Map classic class names to their XL equivalents (where there is a difference)
+	*********************************************************************************************/
+
+	"class_name_map": {
+		"Application": "ApplicationComponent",
+		"ApplicationServer": "ApplicationComponent",
+		"VirtualApplication": "Service",
+		"Zone": "AvailabilityZone"
+	},
+
+
+	"excluded_template_names_re": "^(AVG:|MAX:|restored-vm-)",
+
+	"excluded_template_classes": [ ],
+
+	"excluded_template_resources": {
+		"storageResources": [ "numDiskSize", "storageAmount" ]
+	},
+
+	"excluded_group_names_re": "^(AvailabilitySet::|AzureScaleSet::|GROUP-DESKTOPPOOL-|Region .* Expired Promo Templates$|Sellers-Group-GROUP-DRS-|Buyers-Group-GROUP-DRS-)",
+
+
+	/********************************************************************************************
+		JS RegExps that identitify placement policies to be excluded. Policies who's displayName
+		matches any of these wont even be stored in the DB file.
+	*********************************************************************************************/
+
+	"excluded_settings_policy_name_res": [
+		"(Cloud Compute Tier Exclusion|Consistent Scaling) Policy \\(account [0-9]+\\)$",
+		"^Imported HA settings for ",
+		"^HA Settings for PMs with Mem threshold ",
+		"^Buyers-Group-HANodes-.*?::Policy$",
+		"^AvailabilitySet::",
+		"^AzureScaleSet::",
+		"^Region .*? Expired Promo Templates::Policy$",
+		"^VMs_Accelerated Networking Enabled_.*?::Policy$"
+	],
+
+
+	/********************************************************************************************
+		JS RegExps that identitify placement policies to be excluded. Policies who's displayName
+		matches any of these wont even be stored in the DB file.
+	*********************************************************************************************/
+
+	"excluded_placement_policy_name_res": [
+	],
+
+
+	/********************************************************************************************
+		JS RegExp list for user groups to exclude (unless they are used as scopes in included
+		policies or targets
+	*********************************************************************************************/
+
+	"excluded_user_group_name_res": [
+		"^AvailabilitySet::",
+		"^AzureScaleSet::",
+		"^GROUP-DESKTOPPOOL-",
+		"^Sellers-Group-GROUP-DRS-",
+		"^Buyers-Group-GROUP-DRS-",
+		"^Region .*? Expired Promo Templates$"
+	],
+
+
+	"template_name_map": {
+		"VirtualMachine": {
+			"Large": "Large VM",
+			"Small": "Small VM",
+			"Medium": "Medium VM"
+		},
+		"PhysicalMachine": {
+			"Large": "Large Host",
+			"Small": "Small Host",
+			"Medium": "Medium Host"
+		},
+		"Storage": {
+			"Large": "Large Storage",
+			"Small": "Small Storage",
+			"Medium": "Medium Storage"
+		}
+	},
+
+	"standardize_target_display_name": {
+		"AppDynamics": {
+			"js": "function(name) { return name.replace(/[,-][0-9]+$/, ''); }"
+		}
+	},
+
+
+	/********************************************************************************************
+		Some targets specs are different enough between Classic and XL that we need to apply some
+		target-specific logic to "cook" the Classic spec and convert it to something XL can eat.
+	*********************************************************************************************/
+
+	"target_cooker_script_map": {
+		"AWS": "aws-cooker.js",
+		"vCenter": "vcenter-cooker.js",
+		"SNMP": "scope-cooker.js",
+		"WMI": "scope-cooker.js",
+		"SQLServer": "scope-cooker.js",
+		"AppDynamics": "simple-defaults-cooker.js",
+		"Nutanix": "simple-defaults-cooker.js"
+	},
+
+	/********************************************************************************************
+		Targets that have the billing features embedded in them in classic, but for which a
+		separate target is needed in XL. "type" is the type of the billing target. "fields" is
+		the list of fields from classic which (if populated) indicate that the billing target
+		should be created.
+	*********************************************************************************************/
+
+	"split_billing_targets": {
+		"AWS": {
+			"type": "AWS Billing",
+			"fields": [ "bucketName", "bucketRegion", "reportPathPrefix"]
+		}
+	},
+
+	/********************************************************************************************
+		Timeouts for various parts of the process.
+		Values must be specified using syntax like "15s", "10m", "2h" - etc
+	*********************************************************************************************/
+
+	"timeouts": {
+		"create_target": "5m"
+	}
+}

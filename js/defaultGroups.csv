@@ -1,0 +1,181 @@
+uuid,className,name,displayName
+_S4k98SFQEd-S4dn3K4_SSA,Group,GROUP-DataCenter,Datacenters
+_S4k94SFQEd-S4dn3K4_SSA,Group,GROUP-Chassis,Chassis
+_S4k98yFQEd-S4dn3K4_SSD,Group,GROUP-StorageController,Storage Controllers
+_S4k98yFQEd-S4dn3K4_SSC,Group,GROUP-DiskArray,Disk Arrays
+_Ro5pIfzkEeaEtoC7em9MXA,Group,GROUP-LogicalPool,Logical Pools
+_S4k98yFQEd-S4dn3K4_SSB,Group,GROUP-Switch,Fabric Interconnects
+_S4k98yFQEd-S4dn3K4_SSE,Group,GROUP-IOModule,IOModules
+_S4k98yFQEd-S4dn3K5_STE,Group,GROUP-ReplicaSet,ReplicaSet
+_S4k98yFQEd-S4dn3K6_STE,Group,GROUP-DuplicateUuidSet,DuplicateUuidSet
+_S4k98yFQEd-S4dn3K5_SSE,Group,GROUP-VPods,VPods
+_S4k98yFQEd-S4dn3K6_SSE,Group,GROUP-DPods,DPods
+_S4k98yFQEd-S4dn3K4_SSA,Group,GROUP-Storage,Storage
+_GGXJMAq_EeCdopFV2piRqw,Group,GROUP-StorageTiers,Storage Types
+_GGXJMAq_EeCdopFV2piRqz,Group,GROUP-StorageProviders,Storage Providers
+_GGXJMAq_11CdopFV2piRqw,Group,GROUP-DS-BLOCK,Block
+_GGXJMAq_22CdopFV2piRqw,Group,GROUP-DS-ISCSI,iSCSI
+_GGXJMAq_33CdopFV2piRqw,Group,GROUP-DS-FIBERCHANNEL,Fiber Channel
+_GGXJMAq_44CdopFV2piRqw,Group,GROUP-DS-FCOE,FCOE
+_GGXJMAq_45CdopFV2piRqw,Group,GROUP-DS-BLOCK-OTHER,Other
+_GGXJMAq_55CdopFV2piRqw,Group,GROUP-DS-OBJECT,Object
+_GGXJMAq_66CdopFV2piRqw,Group,GROUP-DS-FILESYSTEM,File System
+_GGXJMAq_77CdopFV2piRqw,Group,GROUP-DS-NFS,NFS
+_GGXJMAq_88CdopFV2piRqw,Group,GROUP-DS-CIFS_SMB,CIFS|SMB
+_GGXJMAq_89CdopFV2piRqw,Group,GROUP-DS-FS-OTHER,Other
+_GGXJMAq_99CdopFV2piRqw,Group,GROUP-DS-LOCAL,Local(Direct Attached)
+_GGXJMAq_00CdopFV2piRqw,Group,GROUP-DS-OTHER,Other
+_RwZHQBEpEeCPac-AtPz8gw,Group,GROUP-Policies-TOP,Imported Groups
+_GBIGQMvSEeCHAdVb0k7XJQ,Group,GROUP-VC-ANN,VC Annotations
+_vE_Y0RDFEeagg_VdYk3BnQ,Group,GROUP-SPBM-DS,VC Storage Profiles
+_sdChYCo5EeSIR9qS_s82fw,Group,GROUP-ResizeAutomated,Non Disruptive Supported
+_S4k96SFQEd-S4dn3K4_SSD,Group,GROUP-SwitchByNetwork,Fabric Interconnect By Network
+_S4k96SFQEd-S4dn3K4_SSE,Group,GROUP-IOModuleByChassis,IOModule By Chassis
+_S4k96SFQEd-S4dn3K4_PPE,Group,GROUP-ChassisByNetwork,Chassis By Network
+_S4k96SFQEd-S4dn3K4_SSC,Group,GROUP-DiskArrayByStorageController,DiskArray By StorageController
+_4k8Q4PztEeaJzalfGdwPOg,Group,GROUP-LogicalPoolByDiskArray,Logical Pool By Disk Array
+_S4k99SFQEd-S4dn3K4_SSA,Group,GROUP-PhysicalMachine,Physical Machines
+_S4k96SFQEd-S4dn3K4_SSA,Group,GROUP-PhysicalMachineByDataCenter,Physical Machines By Datacenter
+_S4k23SFQEd-S4dQ3K4_SSB,Group,GROUP-PhysicalMachineByChassis,Physical Machines By Chassis
+_zUALEJPwEeeR_elfsjNUzw,Group,GROUP-PhysicalMachineByChassisOrDataCenter,Physical Machines By Chassis or Datacenter
+_S4k96SFQEd-S4dn3K4_SSB,Group,GROUP-StorageByDataCenter,Storage By Datacenter
+_0rOZwA95EeCQ36YSwSiMQw,Group,GROUP-EntitiesByCluster,By PM Cluster
+_S4k97SFQEd-S4dn3K4_SSA,Group,GROUP-PhysicalMachineByCluster,Physical Machines By PM Cluster
+_S4k97SFQEd-S4dn3K4_SSB,Group,GROUP-StorageByCluster,Storage By PM Cluster
+_YM1kUfzxEeaJzalfGdwPOg,Group,GROUP-StorageByLogicalPool,Storage By Logical Pool
+_S4k97SFQEd-S4dn3K4_AGD,Group,GROUP-StorageByDiskArray,Storage By Disk Array
+_S4k99yFQEd-S4dgwK4_SSA,Group,GROUP-Containers,Containers
+_S4k99yFQEd-S4dgwK4_SSB,Group,GROUP-ContainerPods,ContainerPods
+_S4k99yFQEd-S4dn3K4_SSA,Group,GROUP-VirtualMachine,Virtual Machines
+_zFw-QoOUEd-PpsslY2v11g,Group,GROUP-AllVirtualMachine,All Virtual Machines
+_BZFmlFDXEd-aD6K-5rgLZQ,Group,GROUP-VirtualMachineByCluster,Virtual Machines By PM Cluster
+_BZFmlFDXEd-aD6K-11234,Group,GROUP-VirtualMachineByStorageCluster,Virtual Machines By Storage Cluster
+_BZFmlFDXEd-aD6K-12345,Group,GROUP-VirtualMachineByServiceLevelCluster,Virtual Machines By Service Level Cluster
+_BZGNoVDXEd-aD6K-5rgLZQ,Group,GROUP-VirtualMachineByPhysicalMachine,Virtual Machines By Physical Machine
+_vWYTVLt3Ed-rL9FTSyYSqA,Group,GROUP-VirtualMachineByNetwork,Virtual Machines By Network
+_vWY6Ybt3Ed-rL9FTSyYSqA,Group,GROUP-VirtualMachineByStorage,Virtual Machines By Storage
+_r3CCsC7_EeGnkO6Bxf4fEw,Group,GROUP-VirtualMachineByVirtualDataCenter,Virtual Machines By Virtual Datacenter
+_r3CCsC7_EeGnkO6Bxf4fEz,Group,GROUP-VirtualMachineByBusinessUser,Virtual Machines By User
+_BZGNoVDXwe-aD6K-5rgLZQ,Group,GROUP-ContainerByVM,Container By VirtualMachine
+_3dHrJDqVmfMq-4ejgGP-Bw,Group,GROUP-ContainerByTarget,Container By Target
+_eJXWx-owB79Cdf-MSA6vRM,Group,GROUP-ContainerByDataCenter,Container By DataCenter
+_BZeNoVDXae-aD6K-5rgLZQ,Group,GROUP-ContainerPodByVM,ContainerPod By VirtualMachine
+_3dHrJahVmfMq-4ejgGP-Bw,Group,GROUP-ContainerPodByTarget,ContainerPod By Target
+_eJXWx-owB7f3af-MSA6vRM,Group,GROUP-ContainerPodByDataCenter,ContainerPod By DataCenter
+_S4k9-SFQEd-S4dn3K4_SSA,Group,GROUP-Application,Applications
+_43beIGPJEeGWCZyJEMpjHQ,Group,GROUP-VirtualApplication,Virtual Applications
+_BZGNoVDXEd-aD7K-5rgLZQ,Group,GROUP-ApplicationByPhysicalMachine,By Physical Machine
+_XPGNonrsED-aD23-5rgLZQ,Group,GROUP-ApplicationByType,By Type
+_S4k9-SFQEd-S4dn3K4_ZZA,Group,GROUP-ApplicationServer,Application Servers
+_XPGNonrsED-aD23-5rzZZQ,Group,GROUP-ApplicationServerByType,Application Server by Type
+_H4E8cdGIRWyL4n6P4xXXAQ,Group,GROUP-DatabaseServer,Databases
+_rX4Wn2q0R5qdx83DPWcBVA,Group,GROUP-DatabaseByType,DatabaseServer by Type
+_wK4GWWTbEd-Ea97W1LbBST,Group,GROUP-SWGroups,SW Groups
+_wK5GWWTbEd-Ea97W1LbBST,Group,GROUP-IOGroups,IO Groups
+_GDkjwPzvEeaJzalfGdwPOg,Group,GROUP-LPGroups,LP Groups
+_wK4GWWTbEd-Ea97W1LbBSS,Group,GROUP-DAGroups,DA Groups
+_wK4GWWTLEd-Ea97W1LbBST,Group,GROUP-CHGroups,CH Groups
+_wK4GWWTbEd-Ea97W1LbBSP,Group,GROUP-PMGroups,PM Groups
+_wK4GWWTbEd-Ea97W1LbBSZ,Group,GROUP-STGroups,Storage Groups
+_wK4GWWTbEd-Ea97W1LbBSR,Group,GROUP-VMGroups,VM Groups
+_wK4GWWTbEd-Ea97W1LbBad,Group,GROUP-ContainerGroups,Container Groups
+_wK4GWWTbEd-Ea97W1LbBat,Group,GROUP-ContainerPodGroups,ContainerPod Groups
+_wK4GWWTbEd-Ea97W1fNhs6,Group,GROUP-VCImportedGroups,Folders
+_yMADkAblEeGxyJIJTSApQQ,Group,GROUP-ProviderVDCs,Provider Virtual Datacenters
+_yMADkAblEeGxyJIJTSApQP,Group,GROUP-ConsumerVDCs,Consumer Virtual Datacenters
+_yMADkAblEeGxyJIJTSArJP,Group,GROUP-OtherConsumerVDCs,Children Consumer Virtual Datacenters
+_B1p5AAbmEeGhWLLw4sc9uw,Group,GROUP-AllVDCs,All Virtual Datacenters
+_B1p5AAbmEeGhWLLw4sc9ux,Group,GROUP-AllDesktopPools,All Desktop Pools
+_wK4GWWTbEd-Ea97W1LbBSQ,Group,GROUP-OtherGroups,Groups
+_H7Z4gLdrEd-mCae6xGzCQQ,Group,GROUP-PM_Parent,
+_DMesps-KGHy5ocYU-OB7wM,Group,GROUP-CloudFoundry-SDK-Apps,Apps_CloudFoundry
+_dDmS-PZVmlpuE5oo-p5h3A,Group,GROUP-CloudFoundry-VirtualApps,VApps_CloudFoundry
+_V9xSMQPL-QXHV3s-3zrQNB,Group,GROUP-CloudFoundry-Containers,Containers_CloudFoundry
+_uZaHEKAsBeW8WIEGPfuv9g,Group,GROUP-XenVirtualMachines,Xen Virtual Machines
+_uafFIcasEeC9wIEGPhub1G,Group,GROUP-XenPhysicalMachines,Xen Physical Machines
+_uafFI3AseEC1rIEwmcuv6g,Group,GROUP-XenStorage,Xen Storage
+undefined,Group,GROUP-VnxDiskArray,Vnx DiskArray
+undefined,Group,GROUP-VnxXMLDiskArray,Vnx XML DiskArray
+undefined,Group,GROUP-XTremIODiskArray,XTremIO DiskArray
+_PQdO0GkeEeGWS-GKuEcnnQ,Group,GROUP-VDC1VMs,VDC 1.0 VMs
+_vd9XcODHEeGc5fmApFldNA,Group,GROUP-CostBasedHW,By Cost
+_0rOZwA95ZeCQ36YSwSiMQw111,Group,GROUP-StorageEntitiesByCluster,By Storage Cluster
+_S4k97SFQZd-S4dn3K4_SSB111,Group,GROUP-StorageByStorageCluster,Storage By Cluster
+_0rOZwA95ZeCQ36YSwSiMQw123,Group,GROUP-StorageEntitiesByServiceLevelCluster,By Service Level Cluster
+_S4k97SFQZd-S4dn3K4_SSB123,Group,GROUP-StorageByServiceLevelCluster,Storage By Service Level Cluster
+_EE7mgCl7EeSTurKWFLFfCg,Group,GROUP-VimVMHotAddMem,Virtual Machines by Hot Add Memory
+_O9z0kCl7EeSk_4OzsCq8ow,Group,GROUP-VimVMHotAddCPU,Virtual Machines by Hot Add CPU
+_vd9X-GROUP-HA-AllAppsOnHighlyAvailableProviders-FldNA,Group,GROUP-HA-AllAppsOnHighlyAvailableProviders,Apps on Highly Available VMs
+_7yrxAApbEeeqGNAIjjRqrQ,Group,GROUP-PMsByTargetType,PMs by Target Type
+_npchEDctEeeRJ77IkDHrbA,Group,GROUP-StorageByTargetType,Storage by Target Type
+_ZiQa8EFUEeeFfuFuN_mNHA,Group,GROUP-VMsByTargetType,VMs by Target Type
+_y-uCEAmMEeepiIloSuTHiA,Group,GROUP-CloudVMs,All Cloud VMs
+_y-uCEAmMEeepiIloSuTHiB,Group,GROUP-CloudDBSs,All Cloud DBSs
+_y-uCEAmMEeepiIloSuTHiC,Group,GROUP-CloudDBs,All Cloud DBs
+_y-uCEAmMEeepiIloSuTHiD,Group,GROUP-CloudWorkloads,All Cloud Workloads
+_lRrTYB--EeewItqBJctLGw,Group,GROUP-CloudPMs,All Cloud Zones
+_lRdGBB--EeewItqBJctLGw,Group,GROUP-CloudSTs,Cloud STs
+_lRdETT--EeejetqBJctLGw,Group,GROUP-CloudDAs,Cloud DAs
+_2KrxAAfUEeeqGNAIjjRqyP,Group,GROUP-VMsByTarget,VMs by Target
+50eb8d241c1f133b10c8f14d93a566de3f9a82b0,Group,GROUP-fexIOModules,Rack Server IOModules
+_PE0v-YEUEee_hYfzgV9uYg,Group,GROUP-OnPremPMs,All On-prem Hosts
+_AvmmwX8QEeimuqnYHlAKIw_migration,Group,GROUP-STsMigrateAllocFromOnPremToCloud,Storage on Cloud for migration
+_S4k98yFQEd_migration,Group,GROUP-STsMigrateFromOnPremToCloud,Storage on Cloud for migration
+_S4k9-SFQEd-S4dn3K4_ZZZ,Group,GROUP-AppDApplicationServer,Application Servers
+_H4E8cdGIRWyL4n6P4xXXAW,Group,GROUP-BusinessApplication,Business Applications
+5qRtV-7NBo-9jJmtL-E2emH,Group,GROUP-PivotalVms,Pivotal VMs
+_zUALWJPwEfeR_dlfsjNGzr,Group,GROUP-WorkloadByAccount,Workload By Account
+_zUALWJPwEfeR_dlfsjNGzE,Group,GROUP-WorkloadByResourceGroup,Workload By Resource Group
+_y-uCEAmMEqepiIloSuTHiA,Group,GROUP-AWSAccounts,All AWS Accounts
+_y-uCEAmMEqesiIloSuTHiA,Group,GROUP-AzureAccounts,All Azure Accounts
+_H7bGoLdrEd-mCae6xGzCQQ,MarketGroup,GROUP-PM_Large,
+_H7c70bdrEd-mCae6xGzCQQ,MarketGroup,GROUP-PM_Medium,
+_H7c71bdrEd-mCae6xGzCQQ,MarketGroup,GROUP-PM_Small,
+_o94pZyFqEd-RkpkaAlL0cg,MetaGroup,GROUP-VMs,VMs
+_0webMSZyEd-O6tB8xjAnEQ,MetaGroup,GROUP-Container,Containers
+_0webbSZyEd-O6tB8xjAnEQ,MetaGroup,GROUP-ContainerPod,ContainerPods
+_0vOUMSZyEd-O6tB8xjAnEQ,MetaGroup,GROUP-Apps,Apps
+_0vOUMSZyEd-O6tB8xjAnEQ1,MetaGroup,GROUP-AppSrvs,AppSrvs
+_uv9L4LRbSgKDHQYvHydZOg,MetaGroup,GROUP-DBS,Databases
+_Ms9eIGPKEeGnCcOTYE0bsg,MetaGroup,GROUP-VAppsByServiceType,VApps by Service Type
+_ECQ-JDwIHPUSLnq-mEHeio,MetaGroup,GROUP-AppsByTarget,Apps
+_j3IA-ihP9JRkm-A7Biub77,MetaGroup,GROUP-AppsByDataCenter,Apps
+_Yt6TjT1W-DF6RJk-yxyRV2,MetaGroup,GROUP-ContainerByTarget,Containers
+_b4F74-EoSRaiBr7-IBDZfq,MetaGroup,GROUP-ContainerByDataCenter,Containers
+_Yt6TjT1W-DabRJk-yxyRV2,MetaGroup,GROUP-ContainerPodByTarget,ContainerPods
+_b4F74-fbSRaiBr7-IBDZfq,MetaGroup,GROUP-ContainerPodByDataCenter,ContainerPods
+_ypvKQAjAEeefuN7veUr--g,MetaGroup,GROUP-PMsByTargetType,PMs
+_npchETctEeeRJ77IkDHrbA,MetaGroup,GROUP-StorageByTargetType,Storage
+_ZiQa8UFUEeeFfuFuN_mNHA,MetaGroup,GROUP-VMsByTargetType,VMs
+_bfvKQAjAJwefuN7veUr-rm,MetaGroup,GROUP-VMsByTarget,VMs
+_kfvKQAjAJwefuN7veUr-rm,MetaGroup,GROUP-ProxyVMsByTarget,VMs
+4Rs-p2tICc-VjITCx-Dcy74,MetaGroup,GROUP-PivotalVmsByDeployment,Pivotal VMs
+_o94pZyFqEd-RkpkaAlL0ch,StaticMetaGroup,GROUP-PMsByCluster,PMs
+_o94pZyFqEd-RkpkaAlL0cj,StaticMetaGroup,GROUP-STsByDatacenter,Storage
+_o94pZyFqEd-RkpkaAlL0ck,StaticMetaGroup,GROUP-STsByCluster,Storage
+_o94pZyFqEd-RkpkaAlL1da,StaticMetaGroup,GROUP-LPsByStorageController,LogicalPool
+_iIo7EVDZEd-obLya6ExnGA,StaticMetaGroup,GROUP-VMsByCluster,VMs
+_iIo7EVDZQd-obLya6ExnGA,StaticMetaGroup,GROUP-AppByPM,Apps
+_pELEEC8AEeGlzYJ0fAFhcQ,StaticMetaGroup,GROUP-VMsByOrgVDC,VMs
+_vgg8MODHEeGc5fmApFldNA,StaticMetaGroup,GROUP-PMsByCost,PMs
+_vg59wODHEeGc5fmApFldNA,StaticMetaGroup,GROUP-STsByCost,STs
+_o94ZZyFqEd-RkpkaAlL0ch111,StaticMetaGroup,GROUP-STsBySTCluster,Storage
+_o94ZZyFqEd-RkpkaAlsdasn2,StaticMetaGroup,GROUP-VMsBySTCluster,VMs
+_o94ZZyFqEd-RkpkaAlL0ch123,StaticMetaGroup,GROUP-STsBySLCluster,Storage
+_o94ZZyFqEd-RkpkaAlsdasn3,StaticMetaGroup,GROUP-VMsBySLCluster,VMs
+_o94pZYVqEd-PTpkaAlL0ci,StaticMetaGroup,GROUP-CHsByNetwork,CHs
+_o94pZyFqEd-RkpkaAlL0ci,RefMetaGroup,GROUP-PMsByDatacenter,PMs
+_o94pZYVqEd-RkpkaAlL0ci,RefMetaGroup,GROUP-PMsByChassis,PMs
+_o94pZyFqEd-RkpkaAlL0ab,RefMetaGroup,GROUP-STsByDiskArray,Storage
+_o94pZyFqEd-RkpkaAlL0cw,RefMetaGroup,GROUP-SWsByNetwork,FIs
+_o94pZyFqEd-RkpkaAlL0cy,RefMetaGroup,GROUP-IOsByChassis,IOMs
+_o94pZyFqEd-RkpkaAlL0cz,RefMetaGroup,GROUP-DAsByStorageController,DiskArray
+_vWgPI7t3Ed-rL9FTSyYSqA,RefMetaGroup,GROUP-VMsByNetwork,VMs
+_vWg2Mbt3Ed-rL9FTSyYSqA,RefMetaGroup,GROUP-VMsByStorage,VMs
+_pELEEC8AEeGlzYJ0fAFhcR,RefMetaGroup,GROUP-VMsByBusinessUser,VMs
+_o94pZyFqRd-RkpkqAlL0ci,RefMetaGroup,GROUP-VMsByAccount,VMs
+_o92pZyFqFd-RkpkqAlL0ti,RefMetaGroup,GROUP-DBsByAccount,DBs
+_o94pZyFdRf-RkpkqAlL1ci,RefMetaGroup,GROUP-DBSsByAccount,DBSs
+_o94pPyFqRd-RkpkqAlL0ci,RefMetaGroup,GROUP-VMsByResourceGroup,VMs
+_o92pPyFqFd-RkpkqAlL1ti,RefMetaGroup,GROUP-DBsByResourceGroup,DBs
+_o94pPyFdRf-RkpkqAlL1ci,RefMetaGroup,GROUP-DBSsByResourceGroup,DBSs

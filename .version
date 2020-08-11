@@ -1,0 +1,6 @@
+Mon 10 Aug 15:46:57 BST 2020
+commit a88eabad3ddad7ead6c4e921426b2ca6b5770f6f (HEAD -> master, origin/master, origin/HEAD)
+Author: Chris Lowth <chris.lowth@turbonomic.com>
+Date:   Mon Aug 10 15:45:28 2020 +0100
+
+    Fixed Makefile to create bin/functions.sh
