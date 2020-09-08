@@ -45,7 +45,7 @@ var classicDb = P.open("file:"+args_.remaining[0]+"?mode=ro");
 var xlDb = P.open("file:"+args_.remaining[1]+"?mode=rw");
 
 var userInfo = client.http.get("/users/me", { });
-if (userInfo.roleName.toLowerCase() !== "administrator") {
+if (userInfo.roleName.toLowerCase() !== "administrator" && userInfo.roleName.toLowerCase() !== "site_admin") {
 	woops("Must be run by a user with Turbonomic administrator rights");
 }
 

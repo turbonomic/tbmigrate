@@ -31,7 +31,6 @@ println(`<!DOCTYPE html>
 	</style>
 	</head><body><div id="main" style="display: none">
 	<div style="color: blue; font-weight: bold">
-	TODO: Identify derived targets<br>
 	TODO: Handle placement policies.<br>
 	TODO: List templates.
 	</div>
@@ -60,9 +59,23 @@ var versionText = commandPipe(tbutil, [client.getCredentialKey(), "version", "-d
 var supplyChainText = commandPipe(tbutil, [client.getCredentialKey(),  "list", "hybrid", "supplychain", "-x", "@.html", "-db", args[0] ]);
 var targetsText = commandPipe(tbutil, [client.getCredentialKey(),  "list", "targets", "-x", "@.csv", "-db", args[0], "-columns", "1,2,3,4,5" ]);
 var defaultSettingsText = commandPipe(tbutil, [client.getCredentialKey(), "print", "all", "default", "settings", "policy", "changes", "-db", args[0], "-html"]);
+
 var customGroupsText = commandPipe(tbutil, [client.getCredentialKey(), "list", "my", "groups", "-j", "-db", args[0]]);
 var customGroups = JSON.parse(customGroupsText);
 customGroups.sort(compareDisplayNames);
+
+var usersText = commandPipe(tbutil, [client.getCredentialKey(), "list", "users", "-j", "-db", args[0]]);
+var users = JSON.parse(usersText);
+users.sort(compareDisplayNames);
+
+var adGroupsText = commandPipe(tbutil, [client.getCredentialKey(), "list", "ad", "groups", "-j", "-db", args[0]]);
+var adGroups = JSON.parse(adGroupsText);
+adGroups.sort(compareDisplayNames);
+
+var placementText = commandPipe(tbutil, [client.getCredentialKey(), "list", "placement" , "policies", "-j", "-db", args[0]]);
+var placement = JSON.parse(placementText);
+placement.sort(compareDisplayNames);
+
 
 require("@/sqlite3_hooks").init(client, "file:"+args[0]+"?mode=ro");
 var lib = require("./libmigrate");
@@ -238,6 +251,40 @@ function getSettingsDetail(p) {
 }
 
 
+function getGroupScopes(g) {
+	var rtn = [];
+
+	var sql = "select p.displayName, s.scopeType from policy_scopes s, placement_policies p where s.groupUuid = ? and s.policyUuid = p.uuid";
+	client.DB.query(sql, [ g.uuid ]).forEach(row => {
+		rtn.push(sprintf("Placement policy '%s' (%s)", htmlEncode(row.displayName), row.scopeType));
+
+	});
+
+	sql = "select t.displayName from settings_scopes s, settings_types t where s.groupUuid = ? and s.typeUuid = t.uuid";
+	client.DB.query(sql, [ g.uuid ]).forEach(row => {
+		rtn.push(sprintf("Settings policy '%s'", htmlEncode(row.displayName)));
+
+	});
+
+	sql = "select t.name from target_scopes s, targets t where s.groupUuid = ? and s.targetUuid = t.uuid";
+	client.DB.query(sql, [ g.uuid ]).forEach(row => {
+		rtn.push(sprintf("Target '%s'", htmlEncode(row.name)));
+	});
+
+	sql = "select u.name, u.provider from user_scopes s, users u where s.groupUuid = ? and s.userUuid = u.uuid";
+	client.DB.query(sql, [ g.uuid ]).forEach(row => {
+		rtn.push(sprintf("%s User '%s'", row.provider === "LDAP" ? "AD" : "Local", htmlEncode(row.name)));
+	});
+
+	sql = "select g.displayName from user_group_scopes s, user_groups g where s.groupUuid = ? and s.userGroupUuid = g.uuid";
+	client.DB.query(sql, [ g.uuid ]).forEach(row => {
+		rtn.push(sprintf("AD user group '%s'", htmlEncode(row.displayName)));
+	});
+
+	return rtn.length > 0 ? rtn.join("<br>") : null;
+}
+
+
 var meta = { };
 client.DB.query("select * from metadata").forEach(row => {
 	meta[row.name] = JSON.parse(row.json);
@@ -338,13 +385,151 @@ policies.filter(p => {
 	println("");
 });
 
-println("<h2>Placement Policies</h2>");
+/*
+print(`
+	<h2>Placement Policies</h2>
+	<table border=1>
+	<tr>
+		<th>Name</th>
+		<th>Type</th>
+		<th>Provider Group</th>
+		<th>Supplied Group</th>
+	</tr>
+`);
 
-println("<span style='color: orange'>NB: This report does not yet include placement policy details.</span>");
+placement.forEach(p => {
+	printf(`<tr>
+			<td>%s</td>
+			<td>%s</td>
+			<td>%s</td>
+			<td>%s</td>
+		</tr>`,
+		htmlEncode(p.displayName),
+		p.type
+	);
+});
+print("</table>");
+*/
+
+var n = 0;
+print(`
+	<h2>Local Users</h2>
+	<table border=1>
+	<tr>
+		<th>Name</th>
+		<th>Role</th>
+		<th>Type</th>
+		<th>Scope</th>
+	</tr>
+`);
+users.forEach(u => {
+	if (u.loginProvider === "Local") {
+		n += 1;
+		var scopes = (u.scope || []).map(s => { return htmlEncode(s.displayName); });
+		scopes.sort();
+		printf(`<tr>
+			<td>%s</td>
+			<td>%s</td>
+			<td>%s</td>
+			<td>%s</td>
+			</tr>`,
+			htmlEncode(u.username),
+			u.roleName,
+			u.type.replace(/Customer$/, ""),
+			scopes.join("<br>")
+		);
+	}
+});
+if (n === 0) {
+	println("<tr><td colspan=4 style='text-align: center'>--- None ---</td></tr>");
+}
+println("</table>");
+
+
+print(`
+	<h2>AD Users</h2>
+	<table border=1>
+	<tr>
+		<th>Name</th>
+		<th>Role</th>
+		<th>Type</th>
+		<th>Scope</th>
+	</tr>
+`);
+n = 0;
+users.forEach(u => {
+	if (u.loginProvider === "LDAP") {
+		n += 1;
+		var scopes = (u.scope || []).map(s => { return htmlEncode(s.displayName); });
+		scopes.sort();
+		printf(`<tr>
+			<td>%s</td>
+			<td>%s</td>
+			<td>%s</td>
+			<td>%s</td>
+			</tr>`,
+			htmlEncode(u.username),
+			u.roleName,
+			u.type.replace(/Customer$/, ""),
+			scopes.join("<br>")
+		);
+	}
+});
+if (n === 0) {
+	println("<tr><td colspan=4 style='text-align: center'>--- None ---</td></tr>");
+}
+println("</table>");
+
+
+n = 0;
+print(`
+	<h2>AD User Groups</h2>
+	<table border=1>
+	<tr>
+		<th>Name</th>
+		<th>Role</th>
+		<th>Type</th>
+		<th>Scope</th>
+	</tr>
+`);
+adGroups.forEach(g => {
+		n += 1;
+		var scopes = (g.scope || []).map(s => { return htmlEncode(s.displayName); });
+		scopes.sort();
+		printf(`<tr>
+			<td>%s</td>
+			<td>%s</td>
+			<td>%s</td>
+			<td>%s</td>
+			</tr>`,
+			htmlEncode(g.displayName),
+			g.roleName,
+			g.type.replace(/Customer$/, ""),
+			scopes.join("<br>")
+		);
+
+});
+if (n === 0) {
+	println("<tr><td colspan=4 style='text-align: center'>--- None ---</td></tr>");
+}
+println("</table>");
+
+
+println("<h2>Templates</h2>");
+println("<span style='color: orange'>NB: This report does not yet include template details.</span>");
 
 
 println("<h2>Custom groups</h2>");
 println("<table>");
+print(`<tr>
+	<th>Name</th>
+	<th>Type</th>
+	<th>N. Entities</th>
+	<th>N. Active</th>
+	<th>Details</th>
+	<th>Scope For</th>
+	</tr>`);
+
 customGroups.forEach(g => {
 	print("<tr>");
 	printf("<td>%v</td>", g.displayName);
@@ -365,6 +550,12 @@ customGroups.forEach(g => {
 		});
 	}
 	println("</td>");
+	var scopes = getGroupScopes(g);
+	if (scopes === null) {
+		printf("<td style='color: #d0d0d0'>n/a</td>");
+	} else {
+		printf("<td>%s</td>\n", getGroupScopes(g));
+	}
 });
 println("</table>");
 

@@ -12,6 +12,10 @@ var sql2 = `select * from groups g, group_uuid_mapping m where m.classicUuid = ?
 var headers = [ "Name", "Category", ">Size: Classic", ">XL", ">Diff", "Type" ];
 var rows = [ ];
 
+var inViewer = getenv("IN_VIEWER") === "true";
+var red = inViewer ? "[red]" : "";
+var sgr0 = inViewer ? "[-]" : "";
+
 classicDb.query(sql1, [ lib.nameMap.excluded_group_names_re ]).forEach(classicGroup => {
 	if (parseInt(classicGroup.isCustom) === 0 && parseInt(classicGroup.isStatic) === 1 && !classicGroup.category) {
 		// these are groups that we dont create but check the existance of in "migrate_groups.js"
@@ -24,7 +28,7 @@ classicDb.query(sql1, [ lib.nameMap.excluded_group_names_re ]).forEach(classicGr
 	var type = t1;
 	if (xlGroup !== null) {
 		var t2 = xlGroup.isStatic === "1" ? "static" : "dynamic";
-		type = (t1 === t2) ? t1 : t1 + " ("+t2+" in XL)";
+		type = (t1 === t2) ? t1 : t1 + " ("+red+t2+" in XL"+sgr0+")";
 		if (classicGroup.category) {
 			type = t2;
 		}
@@ -37,10 +41,11 @@ classicDb.query(sql1, [ lib.nameMap.excluded_group_names_re ]).forEach(classicGr
 			replace(/^(VirtualMachine|VMs)By/, "VMBy").
 			replace(/^(PhysicalMachine|PMs)By/, "PMBy").
 			replace("By", " By ");
-	}
-
-	if (classicGroup.category && type === "static") {
-		type = "[red]static[-]";
+		if (type === "static") {
+			type = "system ("+red+"static in XL"+sgr0+")";
+		} else if (type === "dynamic") {
+			type = "system (dynamic in XL)";
+		}
 	}
 
 	var diff = null;

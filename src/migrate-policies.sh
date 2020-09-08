@@ -5,6 +5,12 @@ export TURBO_FORCE_COLOUR=yes
 . ./.env
 . bin/functions.sh
 
+ready=$(bin/tbscript @null js/db-stats.js policiesReady 2>/dev/null)
+if [ "$ready" != "true" ]; then
+	echo "Not ready to run 'migate-policies.sh' yet - refer to the documentation for the correct order"
+	exit 2
+fi
+
 roll_logs migrate-policies
 
 cd js || exit 2

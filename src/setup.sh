@@ -62,9 +62,6 @@ if [ "$local_classic" != "true" ]; then
 
 fi
 
-./bin/tbutil "$classic_cred" get /search/criteria > "$datadir"/classic-search-criteria.json
-./bin/tbutil "$classic_cred" get /settings/specs > "$datadir"/classic-settings-specs.json
-
 
 echo '================================================='
 echo '|                                               |'
@@ -78,7 +75,7 @@ else
 fi
 TURBO_ASSERT_MODEL=xl \
 TURBO_ASSERT_MIN_VERSION=$min_xl_version \
-TURBO_ASSERT_USER_ROLE=administrator \
+TURBO_ASSERT_USER_ROLE="administrator|site_admin" \
 	./bin/tbutil "$xl_cred" save credentials || exit 2
 
 # Validate the license
@@ -91,6 +88,4 @@ if ! ./bin/tbutil "$xl_cred" license -days-left > /tmp/$$ 2>&1; then
 	exit 2
 fi
 
-./bin/tbutil "$xl_cred" get /search/criteria > "$datadir"/xl-search-criteria.json
-./bin/tbutil "$xl_cred" get /settings/specs > "$datadir"/xl-settings-specs.json
-
+./bin/tbutil "$xl_cred" get /search/criteria > "$datadir"/xl-search-criteria.json || exit 2

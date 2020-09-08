@@ -18,10 +18,9 @@ fi
 
 
 phase1() {
-	if [ ! -f "$classic_db" ] || [ ! -f "$xl1_db" ]; then
-		echo ""
-		echo "It looks like you've not run 'sh collect-data.sh 1' yet"
-		echo
+	ready=$(bin/tbscript @null js/db-stats.js targets1Ready 2>/dev/null)
+	if [ "$ready" != "true" ]; then
+		echo "Not ready to run 'migrate-targets.sh 1' yet - refer to the documentation for the correct order"
 		exit 2
 	fi
 
@@ -37,10 +36,9 @@ phase1() {
 
 
 phase2() {
-	if [ ! -f "$classic_db" ] || [ ! -f "$xl2_db" ]; then
-		echo ""
-		echo "It looks like you've not run 'sh collect-data.sh 2' yet"
-		echo
+	ready=$(bin/tbscript @null js/db-stats.js targets2Ready 2>/dev/null)
+	if [ "$ready" != "true" ]; then
+		echo "Not ready to run 'migrate-targets.sh 2' yet - refer to the documentation for the correct order"
 		exit 2
 	fi
 

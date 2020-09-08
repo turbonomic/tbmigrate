@@ -26,6 +26,12 @@ if [ "$phase" != 1 ] && [ "$phase" != 2 ] && [ "$phase" != 3 ]; then
 fi
 
 phase1() {
+	ready=$(bin/tbscript @null js/db-stats.js collect1Ready 2>/dev/null)
+	if [ "$ready" != "true" ]; then
+		echo "Not ready to run 'collect-data.sh 1' yet - refer to the documentation for the correct order"
+		exit 2
+	fi
+
 	rm -f "$classic_db" "$classic_db"-work \
 		"$xl1_db" "$xl1_db"-work \
 		"$xl2_db" "$xl2_db"-work \
@@ -79,6 +85,12 @@ phase1() {
 
 
 phase2() {
+	ready=$(bin/tbscript @null js/db-stats.js collect2Ready 2>/dev/null)
+	if [ "$ready" != "true" ]; then
+		echo "Not ready to run 'collect-data.sh 2' yet - refer to the documentation for the correct order"
+		exit 2
+	fi
+
 	rm -f \
 		"$xl2_db" "$xl2_db"-work \
 		"$xl3_db" "$xl3_db"-work
@@ -109,6 +121,12 @@ phase2() {
 
 
 phase3() {
+	ready=$(bin/tbscript @null js/db-stats.js collect3Ready 2>/dev/null)
+	if [ "$ready" != "true" ]; then
+		echo "Not ready to run 'collect-data.sh 3' yet - refer to the documentation for the correct order"
+		exit 2
+	fi
+
 	rm -f "$xl3_db" "$xl3_db"-work
 
 	echo "+---------------------------------------------------------------+"

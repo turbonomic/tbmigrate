@@ -10,7 +10,7 @@ if (!client.isXL()) {
 }
 
 var userInfo = client.http.get("/users/me", { });
-if (userInfo.roleName.toLowerCase() !== "administrator") {
+if (userInfo.roleName.toLowerCase() !== "administrator" && userInfo.roleName.toLowerCase() !== "site_admin") {
 	woops("Must be run by a user with Turbonomic administrator rights");
 }
 
@@ -110,12 +110,22 @@ function copyStaticGroup(g, warn) {
 			dn = mapGroupName(dn);
 		}
 
-		var rid = m.remoteId || "";
+		// for AWS, AZURE and GCP: the remote Ids are differently formatted between classic and XL.
+		// -- classic ones look like : azure::VM::d653a2fe-8a55-4796-a25a-a32dcfea4d43
+		// -- XL ones look like      : d653a2fe-8a55-4796-a25a-a32dcfea4d43
+
+		var rid1 = m.remoteId || "";
+		var rid2 = m.remoteId || "";
+		if (rid2.match(/^(aws|azure|gcp)::/)) {
+			var r = rid2.split(/::/);
+			rid2 = r[r.length-1];
+		}
+
 		var pn = m.parentDisplayName || "";
 
 		var n = parseInt(m.n);
 		if (parseInt(n) !== 1) {
-			warning(sprintf("   Warning: duplicate rows for '%v::%v'%v", cn, dn, rid ? (" ("+rid+")") : ""));
+			warning(sprintf("   Warning: duplicate rows for '%v::%v'%v", cn, dn, rid1 ? (" ("+rid1+")") : ""));
 			numSkipped += 1;
 		} else {
 			// Find the matching member in XL
@@ -124,21 +134,21 @@ function copyStaticGroup(g, warn) {
 				from entities
 				where className = ?
 				and displayName = ?
-				and (? = "" or remoteId = ?)
+				and (? = "" or remoteId = ? or remoteId = ?)
 				and (? = "" or parentDisplayName = ?)
 			`;
 
 			var uuids = [ ];
 			var xlClassName = mapGroupClass(cn);
-			xlDb.query(sql2, [ xlClassName, dn, rid, rid, pn, pn ]).filter(row => {
-				if (!rid) { return true; }
+			xlDb.query(sql2, [ xlClassName, dn, rid1, rid1, rid2, pn, pn ]).filter(row => {
+				if (!rid1) { return true; }
 				var rec = JSON.parse(row.json);
 
-				if (rec.remoteId === rid) { return true; }
+				if (rec.remoteId === rid1 || rec.remoteId === rid2) { return true; }
 
 				var accepted = false;
 				_.keys(rec.vendorIds || {}).forEach(k => {
-					if (rec.vendorIds[k] === rid) {
+					if (rec.vendorIds[k] === rid1 || rec.vendorIds[k] === rid2) {
 						accepted = true;
 					}
 				});
@@ -148,10 +158,11 @@ function copyStaticGroup(g, warn) {
 			});
 
 			if (uuids.length > 1) {
-				warning(sprintf("   Warning: multiple entities '%v::%v'%v found", cn, dn, rid ? " ("+rid+")" : ""));
+				warning(sprintf("   Warning: multiple entities '%v::%v'%v found", cn, dn, rid2 ? " ("+rid2+")" : ""));
 				numSkipped += 1;
 			} else if (uuids.length === 0) {
-				warning(sprintf("   Warning: no entity '%v::%v'%v found", cn, dn, rid ? " ("+rid+")" : ""));
+				warning(sprintf("   Warning: no entity '%v::%v'%v found", cn, dn, rid2 ? " ("+rid2+")" : ""));
+debugger;
 				numSkipped += 1;
 			} else {
 				memberUuids.push(uuids[0]);
@@ -240,9 +251,41 @@ function mapCriteria(groupType, criteria) {
 	if (xl.filterCategory !== classic.filterCategory || xl.inputType !== classic.inputType /* || xl.loadOptions !== classic.loadOptions*/) {
 //		println(JSON.stringify(xl));
 //		println(JSON.stringify(classic));
-		var e = new Error(sprintf("Group criteria '%s:%s' dont match in classic and XL", groupType, criteria.filterType));
-		e.createAsStatic = true;
-		throw e;
+		var e2 = new Error(sprintf("Group criteria '%s:%s' dont match in classic and XL", groupType, criteria.filterType));
+		e2.createAsStatic = true;
+		throw e2;
+	}
+
+	if (classic.filterCategory === "entity" && classic.elements.hasSuffix(":uuid")) {
+		var uuids = criteria.expVal.split("|");
+		var mappedUuids = [ ];
+		uuids.forEach(uuid => {
+			var classicEntity = null;
+			var xlEntities = [ ];
+			classicDb.query("select json from entities where uuid = ?", [uuid]).forEach(row => {
+				classicEntity = JSON.parse(row.json);
+			});
+			if (classicEntity === null) {
+				var e = new Error(sprintf("Cant find entity in classic with uuid '%v'", uuid));
+				e.createAsStatic = true;
+				throw e;
+			}
+			xlDb.query("select json from entities where className = ? and displayName = ?", [classicEntity.className, classicEntity.displayName]).forEach(row => {
+				xlEntities.push(JSON.parse(row.json));
+			});
+			if (xlEntities.length < 1) {
+				var e2 = new Error(sprintf("Cant find entity '%v::%v' in XL", classicEntity.className, classicEntity.displayName));
+				e2.createAsStatic = true;
+				throw e2;
+			}
+			if (xlEntities.length > 1) {
+				var e3 = new Error(sprintf("Multiple entities '%v::%v' in XL", classicEntity.className, classicEntity.displayName));
+				e3.createAsStatic = true;
+				throw e3;
+			}
+			mappedUuids.push(xlEntities[0].uuid);
+		});
+		criteria.expVal = mappedUuids.join("|");
 	}
 
 	return criteria;
@@ -266,11 +309,6 @@ function copyDynamicGroup(g, warn) {
 		error("   Error: group data not found in classicDb.");
 		return;
 	}
-
-//	if (!g.isStatic && (g.criteriaList||[]).length === 0) {
-//		error("   Error: group has no criteria list");
-//		return;
-//	}
 
 	copied[g.uuid] = true;
 
@@ -537,6 +575,63 @@ groups = groups.filter(g => {
 	var name = mapGroupName(g.displayName);
 	return groupCountByName[name] === 1;
 });
+
+/*
+// Uuids of groups that are used as scopes.
+var scopeGroups = { };
+classicDb.query(`
+	select * from groups where uuid in (
+		select groupUuid from policy_scopes
+		union select groupUuid from settings_scopes
+		union select groupUuid from target_scopes
+		union select groupUuid from user_group_scopes
+		union select groupUuid from user_scopes
+	) and isCustom = 1;
+`).forEach(row => {
+	scopeGroups[row.uuid] = sprintf(
+		"%s - %v[-] - [blue]%d entities[-]",
+		row.displayName,
+		parseInt(row.isStatic) ? "[green]Static" : "[orange]Dynamic",
+		parseInt(row.entitiesCount)
+	);
+});
+
+var selection = { title: "Select the optional groups you wish to migrate", choices: [] };
+_.keys(scopeGroups).forEach(uuid => {
+	selection.choices.push({
+		key: uuid,
+		value: scopeGroups[uuid],
+		selected: false
+	});
+});
+
+selection.choices.sort((a, b) => {
+	var aa = a.value.toLowerCase();
+	var bb = b.value.toLowerCase();
+	if (aa < bb) { return -1; }
+	if (aa > bb) { return 1; }
+	return 0;
+});
+
+	var f = tempFile(JSON.stringify(selection));
+	try {
+		print("<SELECTOR_START>\r                     \r");
+		commandPipe("./select", [f.path()]);
+		print("<SELECTOR_END>\r                      \r");
+		selection = loadJson(f.path());
+		f.clean();
+	} catch (ex) {
+		print("<SELECTOR_END>\r                    \r");
+		f.clean();
+		if (ex.message.hasSuffix("exit status 1")) {
+			println("Migration cancelled by user");
+			exit(1);
+		}
+		throw ex;
+	}
+
+debugger;
+*/
 
 
 groups.forEach(g => {

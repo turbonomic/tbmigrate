@@ -51,6 +51,14 @@ _.keys(lib.nameMap.class_name_map).forEach(t => {
 });
 
 
+title("Checking user role");
+
+var userInfo = client.http.get("/users/me", { });
+if (userInfo.roleName.toLowerCase() !== "administrator" && userInfo.roleName.toLowerCase() !== "site_admin") {
+	woops("Must be run by a user with Turbonomic administrator rights");
+}
+
+
 lib.disableAllActions(client, xlDb);
 
 
@@ -424,7 +432,7 @@ function processCustomPolicies() {
 			return;
 		}
 
-		var failed = false;
+		failed = false;
 		_.keys(xlSettings).forEach(manager => {
 			printf("      %v\n", getManagerDisplayName(row.entityType, manager));
 			_.keys(xlSettings[manager]).forEach(setting => {
@@ -464,15 +472,15 @@ function processCustomPolicies() {
 		});
 
 		if (hasActionScriptSetting) {
-			warning("      Policy includes 'Action Orchestration' settings (these cannot be migrated)");
+			warning("      Warning: Includes 'Action Orchestration' settings which wont be migrated.");
 		}
 
 		if (numSettings === 0) {
-			warning("      Policy would make no changes");
+			warning("      Warning: Policy would make no changes");
 		}
 
 
-		if (numSettings === 0 || hasActionScriptSetting) {
+		if (numSettings === 0 /* || hasActionScriptSetting*/) {
 			error("      Policy not migrated");
 			return;
 		}
@@ -485,24 +493,27 @@ function processCustomPolicies() {
 			delete policy.schedule.nextOccurrenceTimestamp;
 			delete policy.schedule.uuid;
 
-			var re = /^(\d\d\d\d-\d\d-\d\dT\d\d:\d\d):\d\d/;
+			var cleanTime = function(key) {
+				if (policy.schedule[key]) {
+					var re = /^(\d\d\d\d-\d\d-\d\dT\d\d:\d\d):\d\d/;
+					var m = policy.schedule[key].match(re);
+					if (m.length === 2) {
+						policy.schedule[key] = m[1];
+					}
+				}
+			};
 
-			var m = policy.schedule.startTime.match(re);
-			if (m.length === 2) {
-				policy.schedule.startTime = m[1];
-			}
-
-			m = policy.schedule.endTime.match(re);
-			if (m.length === 2) {
-				policy.schedule.endTime = m[1];
-			}
+			cleanTime("startTime");
+			cleanTime("startDate");
+			cleanTime("endTime");
+			cleanTime("endDate");
 
 			try {
 				var sh = findOrCreateSchedule(policy.schedule);
 				policy.schedule = sh;
 			} catch (ex) {
 				var mesg = ex.message.replace(/^HTTP Status: \d+ - /, "").trimSpace();
-				warning(sprintf("      Unable to migrate schedule (%v)", mesg));
+				warning(sprintf("      Warning: Unable to migrate schedule (%v)", mesg));
 				error("      Policy not migrated");
 				return;
 			}
@@ -523,7 +534,6 @@ function processCustomPolicies() {
 				lib.saveSettingsPolicy(xlDb, rtn, false);
 				lib.saveSettingsMapping(xlDb, row.uuid, rtn.uuid);
 			} catch (ex) {
-debugger;
 				throw ex;
 			}
 		} else {

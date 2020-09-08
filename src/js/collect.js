@@ -1,5 +1,5 @@
 // jshint -W083
-/* globals title, bar, colour, warning */
+/* globals title, bar, colour, warning, error */
 
 // Load up the needed libraries and plugins
 
@@ -40,7 +40,7 @@ var targetCriteria = args_["target-criteria"] ? loadJson(args_["target-criteria"
 title("Checking user role");
 
 var userInfo = client.http.get("/users/me", { });
-if (userInfo.roleName.toLowerCase() !== "administrator") {
+if (userInfo.roleName.toLowerCase() !== "administrator" && userInfo.roleName.toLowerCase() !== "site_admin") {
 	woops("Must be run by a user with Turbonomic administrator rights");
 }
 
@@ -175,6 +175,29 @@ function saveMapping(tableName, saveFunc, dnMappingFunc) {
 
 	}
 }
+
+
+function getFilterCategory(entType, filterType) {
+	if (!entType || !filterType) {
+		return "";
+	}
+
+	var rtnRow = null;
+
+	db.query("select * from group_criteria where className = ? and filterType = ?", [entType, filterType]).forEach(row => {
+		rtnRow = row;
+	});
+	if (rtnRow === null) {
+		woops(sprintf("Internal error: group citeria '%s:%s' not found", entType, filterType));
+	}
+
+	if (rtnRow.filterCriteria === "entity" && rtnRow.elements.hasSuffix(":uuid")) {
+		rtnRow.filterCriteria = "uuid";
+	}
+
+	return rtnRow.filterCriteria;
+}
+
 
 // ====================================================================================
 
@@ -375,13 +398,67 @@ try {
 			lib.savePlacementPolicy(db, p, true);
 		}
 	});
-} catch (ex) { printJson(ex); }
+} catch (ex) {
+	error("Error: unable to collect placement policies (API reported a failure)");
+	println("Please confirm that you can see the expected placement policies in the UI and");
+	println("fix and/or re-run this script before attempting migration of policies.");
+}
 
 
 saveMapping("placement_policies", lib.savePlacementPolicyMapping, null);
 
 println("");
 
+
+// ====================================================================================
+
+title("Collecting local and LDAP users");
+lib.createUserTables(db);
+
+var adList = client.getActiveDirectories();
+lib.saveMetaData(db, "ldap", adList);
+
+var userPasswordHashes = { };
+
+if ( !args_["skip-passwords"]) {
+	if (!client.isXL() && (client.isLocal() || client.hasSshCredentials())) {
+		var xmlFile = "/srv/tomcat/data/config/login.config.topology";
+		var data = client.ssh.loadXml(xmlFile);
+
+		var users = (data.LoginManager || {}).users || [];
+		if (!_.isArray(users)) {
+			users = [ users ];
+		}
+		users.forEach(u => {
+			userPasswordHashes[u["-uuid"]] = u["-userPassword"];
+			print(".");
+		});
+		print("|");
+	}
+}
+
+client.getUsers().forEach(u => {
+	u.passwordHash = userPasswordHashes[u.uuid];
+	print(".");
+	lib.saveUser(db, u);
+	(u.scope || []).forEach(s => {
+		neededGroups[s.uuid] = [ "userScope", u.uuid ];
+	});
+});
+
+println("");
+
+
+title("Collecting LDAP user groups");
+
+client.getActiveDirectoryGroups().forEach(g => {
+	print(".");
+	lib.saveUserGroup(db, g);
+	(g.scope || []).forEach(s => {
+		neededGroups[s.uuid] = [ "userGroupScope", g.uuid ];
+	});
+});
+println("");
 
 // ====================================================================================
 // Pull the policy and setting scope group UUIDs out to add to our in-memory list
@@ -559,34 +636,38 @@ if (missingScopeUuids.length > 0) {
 println("");
 
 
+// ====================================================================================
 
-/*
+title("Collecting dynamic group filter entities");
 
-
-missingScopeUuids = _.keys(missingScopeUuids);
-if (missingScopeUuids.length > 0) {
-	var badPolicies = { };
-	missingScopeUuids.forEach(u => {
-		_.keys(policyUuidsByScopeUuid[u] || []).forEach(p => {
-			badPolicies[policyNameByUuid[p]] = true;
-		});
+db.query("select json from groups where isStatic = 0").forEach(row => {
+	var g = JSON.parse(row.json);
+	(g.criteriaList || []).forEach(c => {
+		var fType = getFilterCategory(g.groupType, c.filterType);
+		if (fType === "uuid") {
+			var uuids = c.expVal.split("|");
+			uuids.forEach(uuid => {
+				var n = 0;
+				db.query("select count(*) n from entities where uuid = ?", [uuid]).forEach(row2 => {
+					n = parseInt(row2.n);
+				});
+				if (n > 0) {
+					return;
+				}
+				try {
+					var obj = client.getObjectByUuid(uuid);
+					lib.saveEntity(db, obj);
+					print(".");
+				} catch (ex) {
+					print("!");
+				}
+			});
+		}
 	});
-	badPolicies = _.keys(badPolicies);
-	badPolicies.sort();
-
-	if (badPolicies.length > 0) {
-		println(""); println("");
-		colour("hiyellow");
-		println("Warning: The following policies are scoped to missing groups..");
-		badPolicies.forEach(p => { printf("   - '%v'\n", p); });
-		colour();
-		println("\n(we recommend that you fix the issue and then re-run this step)");
-	}
-}
+});
 
 println("");
 
-*/
 
 // ====================================================================================
 

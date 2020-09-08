@@ -20,10 +20,9 @@ fi
 
 
 phase1() {
-	if [ ! -s "$classic_db" ] || [ ! -s "$xl2_db" ]; then
-		echo
-		echo "It looks like you have not run 'sh collect-data.sh 2' yet."
-		echo
+	ready=$(bin/tbscript @null js/db-stats.js groups1Ready 2>/dev/null)
+	if [ "$ready" != "true" ]; then
+		echo "Not ready to run 'migate-groups.sh 1' yet - refer to the documentation for the correct order"
 		exit 2
 	fi
 
@@ -34,6 +33,12 @@ phase1() {
 }
 
 phase2() {
+	ready=$(bin/tbscript @null js/db-stats.js groups2Ready 2>/dev/null)
+	if [ "$ready" != "true" ]; then
+		echo "Not ready to run 'migate-groups.sh 2' yet - refer to the documentation for the correct order"
+		exit 2
+	fi
+
 	roll_logs migrate-groups-2
 
 	cd js || exit 2

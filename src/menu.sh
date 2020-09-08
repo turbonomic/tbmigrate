@@ -195,6 +195,9 @@ while : ; do
 	elif [ "$opt" = "policies" ]; then
 		run sh migrate-policies.sh
 
+	elif [ "$opt" = "users" ]; then
+		run sh migrate-users.sh
+
 	elif [ "$opt" = "expose-classic-report" ]; then
 		cp reports/classic.html /var/www/html/tbmigrate-report.html
 		if [ $? = 0 ]; then

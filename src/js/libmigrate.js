@@ -501,6 +501,55 @@ exports.saveSchedule = function(db, s) {
 
 // =====================================================================================
 
+exports.createUserTables = function(db) {
+	db.exec("create table users (uuid, name, displayName, provider, role, type, passwordHash, json)");
+	db.exec("create unique index user_uuid on users (uuid)");
+
+	db.exec("create table user_groups (uuid, displayName, role, type, json)");
+	db.exec("create unique index user_group_uuid on user_groups (uuid)");
+
+	db.exec("create table user_scopes (userUuid, groupUuid)");
+	db.exec("create unique index user_scopes_uuid on user_scopes (userUuid, groupUuid)");
+
+	db.exec("create table user_group_scopes (userGroupUuid, groupUuid)");
+	db.exec("create unique index user_group_scopes_uuid on user_group_scopes (userGroupUuid, groupUuid)");
+};
+
+exports.saveUser = function(db, u) {
+	db.exec("replace into users values (?, ?, ?, ?, ?, ?, ?, ?)", [
+		u.uuid,
+		u.username,
+		u.displayName,
+		u.loginProvider,
+		u.roleName,
+		u.type,
+		u.passwordHash,
+		JSON.stringify(u)
+	]);
+
+	db.exec("delete from user_scopes where userUuid = ?", [u.uuid]);
+
+	(u.scope || []).forEach(s => {
+		db.exec("replace into user_scopes values (?, ?)", [u.uuid, s.uuid]);
+	});
+};
+
+exports.saveUserGroup = function(db, g) {
+	db.exec("replace into user_groups values (?, ?, ?, ?, ?)", [
+		g.uuid,
+		g.displayName,
+		g.roleName,
+		g.type,
+		JSON.stringify(g)
+	]);
+
+	(g.scope || []).forEach(s => {
+		db.exec("replace into user_group_scopes values (?, ?)", [g.uuid, s.uuid]);
+	});
+};
+
+// =====================================================================================
+
 exports.readGroup = function(db, displayName, groupType) {
 	var rows = db.query(`select json from groups where displayName = ? and groupType = ?`, [ displayName, groupType]);
 	if (!rows || rows.length === 0) {
