@@ -1,5 +1,13 @@
 #! /bin/bash
 
+if [ "$1" = "-f" ]; then
+	force=true # potentially dangerous! You've been warned.
+	shift
+else
+	force=false
+fi
+
+
 export TURBO_FORCE_COLOUR=yes
 
 . ./.env
@@ -9,6 +17,8 @@ option=""
 
 if [ "$1" = "-skip-passwords" ]; then
 	shift
+	option="-skip-passwords"
+elif [ ! -f data/.migrate-passwords ]; then
 	option="-skip-passwords"
 fi
 
@@ -27,7 +37,7 @@ fi
 
 phase1() {
 	ready=$(bin/tbscript @null js/db-stats.js collect1Ready 2>/dev/null)
-	if [ "$ready" != "true" ]; then
+	if [ "$force" = "false" ] && [ "$ready" != "true" ]; then
 		echo "Not ready to run 'collect-data.sh 1' yet - refer to the documentation for the correct order"
 		exit 2
 	fi
@@ -36,7 +46,8 @@ phase1() {
 		"$xl1_db" "$xl1_db"-work \
 		"$xl2_db" "$xl2_db"-work \
 		"$xl3_db" "$xl3_db"-work \
-		"$logsdir"/*.log*
+		data/.redo-collect-1
+#		"$logsdir"/*.log*
 
 	echo "+---------------------------------------------------------------+"
 	echo "|                                                               |"
@@ -51,7 +62,7 @@ phase1() {
 		script -q -c "
 			../bin/tbscript \"$classic_cred\" collect.js $option -target-criteria \"$datadir\"/xl-search-criteria.json \"$classic_db\"-work &&
 			mv \"$classic_db\"-work \"$classic_db\"
-		" -t"$logsdir"/classic-collect.tm "$logsdir"/classic-collect.log
+		" "$logsdir"/classic-collect.log
 	)
 
 	if [ ! -f "$classic_db" ]; then
@@ -72,7 +83,7 @@ phase1() {
 		script -q -c "
 			../bin/tbscript \"$xl_cred\" collect.js -skip-passwords -source-db \"$classic_db\" \"$xl1_db\"-work &&
 			mv \"$xl1_db\"-work \"$xl1_db\"
-		" -t"$logsdir"/xl-collect-1.tm "$logsdir"/xl-collect-1.log
+		" "$logsdir"/xl-collect-1.log
 	)
 
 	if [ ! -f "$xl1_db" ]; then
@@ -81,12 +92,28 @@ phase1() {
 	fi
 
 	(cd js && ../bin/tbscript "$xl_cred" report.js "$xl1_db" > "$reportsdir"/xl1.html)
+
+	(
+		# Can we skip the first migrate-targets and following collection?
+		cd js
+		../bin/tbscript "$xl_cred" migrate-targets.js -count-only "$classic_db" "$xl1_db"
+		if [ $? = 111 ]; then
+			cp "$xl1_db" "$xl2_db"
+			cp "$reportsdir/xl1.html" "$reportsdir/xl2.html"
+
+			roll_logs migrate-targets-1
+			date > "$logsdir/migrate-targets-1.log"
+
+			roll_logs xl-collect-2
+			date > "$logsdir/xl-collect-2.log"
+		fi
+	)
 }
 
 
 phase2() {
 	ready=$(bin/tbscript @null js/db-stats.js collect2Ready 2>/dev/null)
-	if [ "$ready" != "true" ]; then
+	if [ "$force" = "false" ] && [ "$ready" != "true" ]; then
 		echo "Not ready to run 'collect-data.sh 2' yet - refer to the documentation for the correct order"
 		exit 2
 	fi
@@ -106,9 +133,9 @@ phase2() {
 	(
 		cd js
 		script -q -c "
-			../bin/tbscript \"$xl_cred\" collect.js -skip-passwords -source-db \"$classic_db\" \"$xl2_db\"-work &&
+			../bin/tbscript \"$xl_cred\" collect.js -skip-passwords -source-db \"$classic_db\" -map-groups \"$xl2_db\"-work &&
 			mv \"$xl2_db\"-work \"$xl2_db\"
-		" -t"$logsdir"/xl-collect-2.tm "$logsdir"/xl-collect-2.log
+		" "$logsdir"/xl-collect-2.log
 	)
 
 	if [ ! -f "$xl2_db" ]; then
@@ -122,7 +149,7 @@ phase2() {
 
 phase3() {
 	ready=$(bin/tbscript @null js/db-stats.js collect3Ready 2>/dev/null)
-	if [ "$ready" != "true" ]; then
+	if [ "$force" = "false" ] && [ "$ready" != "true" ]; then
 		echo "Not ready to run 'collect-data.sh 3' yet - refer to the documentation for the correct order"
 		exit 2
 	fi
@@ -142,7 +169,7 @@ phase3() {
 		script -q -c "
 			../bin/tbscript \"$xl_cred\" collect.js -skip-passwords -source-db \"$classic_db\" -map-groups \"$xl3_db\"-work &&
 			mv \"$xl3_db\"-work \"$xl3_db\"
-		" -t"$logsdir"/xl-collect-3.tm "$logsdir"/xl-collect-3.log
+		" "$logsdir"/xl-collect-3.log
 	)
 
 	if [ ! -f "$xl3_db" ]; then

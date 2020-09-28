@@ -1,8 +1,16 @@
-Tue  1 Sep 17:46:27 BST 2020
-commit b3a09a2cc930c8d514f6abb75f0f420d11c44350 (HEAD -> master)
+Thu 24 Sep 18:50:38 BST 2020
+commit b6f97aa863124c948edeb997f8a6a9ad9c997e43 (HEAD -> master, origin/master, origin/HEAD)
 Author: Chris Lowth <chris.lowth@turbonomic.com>
-Date:   Tue Sep 1 17:43:57 2020 +0100
+Date:   Thu Sep 24 18:44:41 2020 +0100
 
-    TBMigrate 3.1 fix
+    Mainly work on "TBMigrate 3.5" and supporting changes to "tbutil".
     
-    Allow "collect.js" to handle dynamic groups with empty entry in criteraList
+    - Addition of "-scope" flag to tbutil's "list entities" commands.
+    - Two new tbutil built-in "-s" filter scripts: "@/uuids" and "@/count". The "-s" flag handler now correctly handles this syntax.
+    - TBMigrate changes..
+      - New field "why" in "groups" table - to facilitate debugging of group creation issues.
+      - "collect" script collects details of ALL existing groups from XL - to allow more accurate warnings when name duplicate causes problems.
+      - "migrate-targets" now looks for a match on target names using case-insensitve comparision (in an attempt to be more forgiving about the names of pre-migrated targets).
+      - "migrate-targets" now checks all target fields common to XL and Classic for existing XL targets and reports on mis-matches, advision the user to correct them before proceeding.
+      - Targets of different types but the same name caused problems in 3.4 and earlier - this is now resolved.
+      - "migrate-targets" selector marks targets that cant be migrated for reasons of failure or mismatch using a red coloured "Err" flag rather than just an "X".

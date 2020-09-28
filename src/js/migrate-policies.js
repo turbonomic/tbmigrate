@@ -357,6 +357,38 @@ function mapScope(scope) {
 }
 
 
+function cleanSchedule(policy) {
+	delete policy.schedule.nextOccurrence;
+	delete policy.schedule.nextOccurrenceTimestamp;
+	delete policy.schedule.uuid;
+
+	var cleanTime = function(key) {
+		if (policy.schedule[key]) {
+			var re = /^(\d\d\d\d-\d\d-\d\dT\d\d:\d\d):\d\d/;
+			var m = policy.schedule[key].match(re);
+			if (m.length === 2) {
+				policy.schedule[key] = m[1];
+			}
+		}
+	};
+
+	var cleanDate = function(key) {
+		if (policy.schedule[key]) {
+			var re = /^(\d\d\d\d-\d\d-\d\d)/;
+			var m = policy.schedule[key].match(re);
+			if (m.length === 2) {
+				policy.schedule[key] = m[1];
+			}
+		}
+	};
+
+	cleanTime("startTime");
+	cleanDate("startDate");
+	cleanTime("endTime");
+	cleanDate("endDate");
+}
+
+
 function processCustomPolicies() {
 	title("Processing custom policies");
 
@@ -489,24 +521,7 @@ function processCustomPolicies() {
 		delete policy.uuid;
 
 		if (policy.schedule) {
-			delete policy.schedule.nextOccurrence;
-			delete policy.schedule.nextOccurrenceTimestamp;
-			delete policy.schedule.uuid;
-
-			var cleanTime = function(key) {
-				if (policy.schedule[key]) {
-					var re = /^(\d\d\d\d-\d\d-\d\dT\d\d:\d\d):\d\d/;
-					var m = policy.schedule[key].match(re);
-					if (m.length === 2) {
-						policy.schedule[key] = m[1];
-					}
-				}
-			};
-
-			cleanTime("startTime");
-			cleanTime("startDate");
-			cleanTime("endTime");
-			cleanTime("endDate");
+			cleanSchedule(policy);
 
 			try {
 				var sh = findOrCreateSchedule(policy.schedule);

@@ -103,7 +103,15 @@ while : ; do
 		exit 0
 	fi
 
-	if [ "$opt" = creds ]; then
+	if [ "$opt" = "too_small" ]; then
+		echo
+		echo "Please expand this window to a minimum of:"
+		echo
+		echo " 126 columns by 34 lines"
+		echo
+		exit 0
+
+	elif [ "$opt" = creds ]; then
 		run sh setup.sh
 
 	elif [ "$opt" = "collect-1" ]; then
@@ -111,17 +119,18 @@ while : ; do
 
 	elif [ "$opt" = "targets-1" ]; then
 		run sh migrate-targets.sh 1
-		if [ $? != 1 ]; then
+		stat=$?
+		if [ $stat != 1 ] && [ $stat != 22 ]; then
 			echo
 			x="${yellow}*${reset}"
-			echo "$yellow***********************************************************************"
+			echo "${yellow}***********************************************************************"
 			echo "*                                 NOTE                                *"
-			echo "***********************************************************************$reset"
+			echo "***********************************************************************${reset}"
 			echo "$x You should wait until discovery of the new targets is 100% complete $x"
 			echo "$x before progressing to the next step. You can monitor progress using $x"
 			echo "$x the UI, and waiting until you see that the supply chain etc are     $x"
 			echo "$x fully populated.                                                    $x"
-			echo "$yellow***********************************************************************$reset"
+			echo "${yellow}***********************************************************************${reset}"
 			echo
 		fi
 
@@ -131,9 +140,9 @@ while : ; do
 
 	elif [ "$opt" = "collect-2" ]; then
 		x="${yellow}*${reset}"
-		echo "$yellow***********************************************************************"
+		echo "${yellow}***********************************************************************"
 		echo "*                             PLEASE CONFIRM                          *"
-		echo "***********************************************************************$reset"
+		echo "***********************************************************************${reset}"
 		echo -n "Has the `productName` XL instance finished discovering the topology (y/n)? "
 		read yn || continue
 		if [ "$yn" = "y" ]; then
@@ -145,25 +154,24 @@ while : ; do
 		fi
 
 	elif [ "$opt" = "groups-1" ]; then
-		run sh migrate-groups.sh 1
+		run sh migrate-groups.sh -i 1
 
 	elif [ "$opt" = "review-groups-1" ]; then
 		run sh compare-groups.sh
-#		waitAtEnd=false
 
 	elif [ "$opt" = "targets-2" ]; then
 		run sh migrate-targets.sh 2
 		if [ $? != 1 ]; then
 			x="${yellow}*${reset}"
 			echo
-			echo "$yellow***********************************************************************"
+			echo "${yellow}***********************************************************************"
 			echo "*                                 NOTE                                *"
-			echo "***********************************************************************$reset"
+			echo "***********************************************************************${reset}"
 			echo "$x You should wait until discovery of the new targets is 100% complete $x"
 			echo "$x before progressing to the next step. You can monitor progress using $x"
 			echo "$x the UI, and waiting until you see that the supply chain is fully    $x"
 			echo "$x populated.                                                          $x"
-			echo "$yellow***********************************************************************$reset"
+			echo "${yellow}***********************************************************************${reset}"
 			echo
 		fi
 
@@ -173,9 +181,9 @@ while : ; do
 
 	elif [ "$opt" = "collect-3" ]; then
 		x="${yellow}*${reset}"
-		echo "$yellow***********************************************************************"
+		echo "${yellow}***********************************************************************"
 		echo "*                                CONFIRM                              *"
-		echo "***********************************************************************$reset"
+		echo "***********************************************************************${reset}"
 		echo -n "Is topology discovery complete (y/n)? "
 		read yn || continue
 		if [ "$yn" = "y" ]; then
@@ -187,7 +195,7 @@ while : ; do
 		fi
 
 	elif [ "$opt" = "groups-2" ]; then
-		run sh migrate-groups.sh 2
+		run sh migrate-groups.sh -i 2
 
 	elif [ "$opt" = "templates" ]; then
 		run sh migrate-templates.sh

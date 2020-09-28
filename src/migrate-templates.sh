@@ -1,12 +1,19 @@
 #! /bin/bash
 
+if [ "$1" = "-f" ]; then
+	force=true # potentially dangerous! You've been warned.
+	shift
+else
+	force=false
+fi
+
 export TURBO_FORCE_COLOUR=yes
 
 . ./.env
 . bin/functions.sh
 
 ready=$(bin/tbscript @null js/db-stats.js templatesReady 2>/dev/null)
-if [ "$ready" != "true" ]; then
+if [ "$force" = "false" ] && [ "$ready" != "true" ]; then
 	echo "Not ready to run 'migate-templates.sh' yet - refer to the documentation for the correct order"
 	exit 2
 fi
@@ -19,4 +26,4 @@ if [ -s "$xl2_db" ] && [ ! -s "$xl3_db" ]; then
 	cp "$xl2_db" "$xl3_db"
 fi
 
-script -q -c "../bin/tbscript \"$xl_cred\" migrate-templates.js \"$classic_db\" \"$xl3_db\"" -t"$logsdir/migrate-templates.tm" "$logsdir/migrate-templates.log"
+script -q -c "../bin/tbscript \"$xl_cred\" migrate-templates.js \"$classic_db\" \"$xl3_db\"" "$logsdir/migrate-templates.log"

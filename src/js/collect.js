@@ -1,4 +1,4 @@
-// jshint -W083
+// jshint -W083, -W061
 /* globals title, bar, colour, warning, error */
 
 // Load up the needed libraries and plugins
@@ -7,7 +7,7 @@ var lib = require("./libmigrate.js");
 var cm = require("./group-creation-map.js");
 var F = require("@/functions");
 var P = plugin("sqlite3-plugin");
-
+var S = plugin("sys-plugin");
 
 // handle command line options and arguments
 
@@ -187,8 +187,9 @@ function getFilterCategory(entType, filterType) {
 	db.query("select * from group_criteria where className = ? and filterType = ?", [entType, filterType]).forEach(row => {
 		rtnRow = row;
 	});
+
 	if (rtnRow === null) {
-		woops(sprintf("Internal error: group citeria '%s:%s' not found", entType, filterType));
+		return "";
 	}
 
 	if (rtnRow.filterCriteria === "entity" && rtnRow.elements.hasSuffix(":uuid")) {
@@ -316,23 +317,53 @@ lib.createTargetExtraTable(db);
 
 if ( !args_["skip-passwords"]) {
 	title("Collecting augmented target info");
+	var warnings = { };
 
 	if (!client.isXL() && (client.isLocal() || client.hasSshCredentials())) {
 		var xmlFile = "/srv/tomcat/data/config/disc.config.topology";
 		var data = client.ssh.loadXml(xmlFile);
+
+		if (!_.isArray(data.DiscoveryManager.targets)) {
+			data.DiscoveryManager.targets = [ data.DiscoveryManager.targets ];
+		}
 
 		(data.DiscoveryManager.targets || []).forEach(t => {
 			print(".");
 			lib.saveTargetExtra(db, t);
 		});
 
-		var key = client.ssh.loadText("/srv/tomcat/data/output/vmt_helper_data.out");
-		lib.saveMetaData(db, "vmt_helper_data", key);
+		var dataFile = "/srv/tomcat/data/output/vmt_helper_data.out";
+		var key64;
+
+		if (getenv("force_remote_classic") === null && client.isLocal() && S.exists(dataFile)) {
+			key64 = S.readFile(dataFile, "base64");
+		} else {
+			var data = client.ssh.loadText("base64 "+dataFile+" |");
+			key64 = data.join("");
+		}
+
+		var cookie = "$_1_$VMT$$";
+		if (key64.decodeBase64().hasPrefix(cookie)) {
+			lib.saveMetaData(db, "vmt_helper_data", key64.decodeBase64());
+			lib.saveMetaData(db, "vmt_helper_key_format", "raw");
+		} else {
+			warnings["Warning: Old-style VMT helper key detected. Migration of target passwords may fail"] = true;
+			lib.saveMetaData(db, "vmt_helper_data", key64);
+			lib.saveMetaData(db, "vmt_helper_key_format", "base64");
+		}
 	} else {
 		print("No SSH credentials configured - skipping\n");
 	}
 
 	println("");
+
+	warnings = _.keys(warnings);
+	warnings.sort();
+	if (warnings.length > 0) { println(""); }
+	warnings.forEach(w => {
+		warning(w);
+	});
+	if (warnings.length > 0) { println(""); }
 }
 
 
@@ -381,11 +412,21 @@ try {
 			return;
 		}
 		var include = true;
+
 		lib.nameMap.excluded_placement_policy_name_res.forEach(re => {
-			if (p.displayName.match(re)) {
+			if ((p.displayName || "").match(re) ||( p.name || "").match(re)) {
 				include = false;
 			}
 		});
+
+		if (((p.providerGroup || {}).displayName || "").match(lib.nameMap.excluded_group_names_re)) {
+			include = false;
+		}
+
+		if (((p.consumerGroup || {}).displayName || "").match(lib.nameMap.excluded_group_names_re)) {
+			include = false;
+		}
+
 		if (include) {
 			bar();
 			if (p.type === "BIND_TO_COMPLEMENTARY_GROUP" && p.providerGroup.displayName.hasPrefix("Complement group of -")) {
@@ -418,31 +459,12 @@ lib.createUserTables(db);
 var adList = client.getActiveDirectories();
 lib.saveMetaData(db, "ldap", adList);
 
-var userPasswordHashes = { };
-
-if ( !args_["skip-passwords"]) {
-	if (!client.isXL() && (client.isLocal() || client.hasSshCredentials())) {
-		var xmlFile = "/srv/tomcat/data/config/login.config.topology";
-		var data = client.ssh.loadXml(xmlFile);
-
-		var users = (data.LoginManager || {}).users || [];
-		if (!_.isArray(users)) {
-			users = [ users ];
-		}
-		users.forEach(u => {
-			userPasswordHashes[u["-uuid"]] = u["-userPassword"];
-			print(".");
-		});
-		print("|");
-	}
-}
 
 client.getUsers().forEach(u => {
-	u.passwordHash = userPasswordHashes[u.uuid];
 	print(".");
 	lib.saveUser(db, u);
 	(u.scope || []).forEach(s => {
-		neededGroups[s.uuid] = [ "userScope", u.uuid ];
+		neededGroups[s.uuid] = [ "ADUserScope", u.uuid ];
 	});
 });
 
@@ -455,7 +477,7 @@ client.getActiveDirectoryGroups().forEach(g => {
 	print(".");
 	lib.saveUserGroup(db, g);
 	(g.scope || []).forEach(s => {
-		neededGroups[s.uuid] = [ "userGroupScope", g.uuid ];
+		neededGroups[s.uuid] = [ "ADGroupScope", g.uuid ];
 	});
 });
 println("");
@@ -539,8 +561,7 @@ while (true) {
 				g.isCustom = false;
 			}
 
-			// printf("[%v|%v|%v]", g.displayName, g.isStatic, g.membersCount);
-			lib.saveGroup(db, g, order);
+			lib.saveGroup(db, g, order, neededGroups[uuid]);
 			lib.saveEntity(db, g);
 
 			if (!client.isXL()) {
@@ -585,6 +606,7 @@ while (true) {
 			if (client.lastException().isNotFound) {
 				missingScopeUuids[uuid] = true;
 			}
+			// printJson(ex);
 			print("!");
 		}
 	});
@@ -592,6 +614,18 @@ while (true) {
 	if (n === 0) { break; }
 }
 
+if (client.isXL()) {
+	hash();
+	var opts = { types: "Group,Cluster" };
+	client.paginate("getSearchResults", opts, g => {
+		var n = parseInt(db.query("select count(*) n from groups where uuid = ?", [g.uuid])[0].n);
+		if (n === 0) {
+			print(".");
+			lib.saveGroup(db, g, -1, [ ""]);
+		}
+	});
+	println("");
+}
 
 missingScopeUuids = _.keys(missingScopeUuids);
 if (missingScopeUuids.length > 0) {
@@ -640,10 +674,16 @@ println("");
 
 title("Collecting dynamic group filter entities");
 
+var badFilters = { };
 db.query("select json from groups where isStatic = 0").forEach(row => {
 	var g = JSON.parse(row.json);
 	(g.criteriaList || []).forEach(c => {
 		var fType = getFilterCategory(g.groupType, c.filterType);
+		if (fType === "" && c.filterType !== "") {
+			badFilters[g.displayName] = true;
+		} else if (c.expType === "EQ" && (c.expVal.hasPrefix("|") || c.expVal.hasSuffix("|"))) {
+			badFilters[g.displayName] = true;
+		}
 		if (fType === "uuid") {
 			var uuids = c.expVal.split("|");
 			uuids.forEach(uuid => {
@@ -667,6 +707,17 @@ db.query("select json from groups where isStatic = 0").forEach(row => {
 });
 
 println("");
+
+badFilters = _.keys(badFilters);
+
+if (badFilters.length > 0) {
+	warning("Warning: some dynamic groups employ redundant or broken filters - review, fix and then re-run this step.");
+	badFilters.sort();
+	badFilters.forEach(f => {
+		warning(sprintf("    - \"%s\"", f));
+	});
+	println();
+}
 
 
 // ====================================================================================
@@ -734,7 +785,7 @@ if (sourceDb !== null) {
 			if (foundUuid === null) {
 				var found = client.findByName(row.className, mappedName);
 				if (found) {
-					lib.saveGroup(db, found, -1);
+					lib.saveGroup(db, found, -1, ["in classic"]);
 					foundUuid = found.uuid;
 					how = "api";
 				}

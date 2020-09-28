@@ -1,9 +1,32 @@
 #! /bin/bash
 
+if [ "$1" = "-f" ]; then
+	force=true # potentially dangerous! You've been warned.
+	shift
+else
+	force=false
+fi
+
+. ./.env
+
 ready=$(bin/tbscript @null js/db-stats.js reviewGroupsReady 2>/dev/null)
-if [ "$ready" != "true" ]; then
+if [ "$force" = "false" ] && [ "$ready" != "true" ]; then
 	echo "Not ready to run 'compare-groups.sh' yet - refer to the documentation for the correct order"
 	exit 2
 fi
 
-bin/viewer "Review Migrated Groups" sh -c "cd js && ../bin/tbscript @xl compare-groups.js ../data/classic.db ../data/xl2.db"
+xldb="${xl1_db}"
+
+if [ -s "${xl2_db}" ] && [ "${xl2_db}" -nt "${xldb}" ]; then
+	xldb="${xl2_db}"
+fi
+
+if [ -s "${xl3_db}" ] && [ "${xl3_db}" -nt "${xldb}" ]; then
+	xldb="${xl3_db}"
+fi
+
+if [ -t 0 ] && [ -t 1 ]; then
+	bin/viewer "Review Migrated Groups" sh -c "cd js && ../bin/tbscript @null compare-groups.js '${classic_db}' '${xldb}'"
+else
+	cd js && ../bin/tbscript @null compare-groups.js "${classic_db}" "${xldb}"
+fi

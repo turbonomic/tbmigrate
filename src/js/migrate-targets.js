@@ -28,7 +28,7 @@ usage = function() {
 	exit(2);
 };
 
-var args_ = F.extendedOptions("", "include-scoped-targets", "delete-failed", "deselect-by-default");
+var args_ = F.extendedOptions("", "include-scoped-targets", "delete-failed", "deselect-by-default", "count-only");
 if (args_.remaining.length !== 2) {
 	usage();
 }
@@ -77,8 +77,13 @@ xlDb.query("select * from target_selection").forEach(row => {
 
 function getTargetFields(db, category, type) {
 	var rtn = { };
-	db.query("select distinct fieldName, valueType, n from target_spec_fields where category = ? and type = ?", [ category, type ]).forEach(fieldRow => {
-		rtn[fieldRow.fieldName] = {"n": parseInt(fieldRow.n), "type": fieldRow.valueType};
+	db.query("select * from target_spec_fields where category = ? and type = ?", [ category, type ]).forEach(fieldRow => {
+		rtn[fieldRow.fieldName] = {
+			"n": parseInt(fieldRow.n),
+			"type": fieldRow.valueType,
+			"secret": parseInt(fieldRow.isSecret) !== 0,
+			"default": JSON.parse(fieldRow.json).defaultValue
+		};
 	});
 	return rtn;
 }
@@ -95,6 +100,99 @@ classicDb.query("select json from targets").forEach(row => {
 	});
 });
 
+
+function targetDetailsMatch(name, type) {
+	var classicTarget = null;
+	var numClassicTargets = 0;
+	classicDb.query("select * from targets where lower(name) = lower(?) and type = ?", [name, type]).forEach(row => {
+		classicTarget = JSON.parse(row.json);
+		classicTarget.name = row.name;
+		numClassicTargets += 1;
+	});
+
+	if (numClassicTargets > 1) {
+		return "Multiple matching targets found in classic";
+	} else if (numClassicTargets === 0) {
+		return "No matching targets found in classic";
+	}
+
+	var xlTarget = null;
+	var numXlTargets = 0;
+	xlDb.query("select * from targets where lower(name) = lower(?) and type = ?", [name, type]).forEach(row => {
+		xlTarget = JSON.parse(row.json);
+		xlTarget.name = row.name;
+		numXlTargets += 1;
+	});
+
+	if (numXlTargets > 1) {
+		return "Multiple matching targets found in XL";
+	} else if (numXlTargets === 0) {
+		return "No matching targets found in XL";
+	}
+
+
+	var classicFieldInfo = getTargetFields(classicDb, classicTarget.category, classicTarget.type);
+	var xlFieldInfo = getTargetFields(xlDb, xlTarget.category, xlTarget.type);
+
+	var classicFields = { };
+	classicTarget.inputFields.forEach(f => {
+		if (!f.isSecret) {
+			f.known = classicFieldInfo[f.name] !== undefined;
+			f.default = (classicFieldInfo[f.name] || {}).default;
+			classicFields[f.name] = f;
+		}
+	});
+
+	var xlFields = { };
+	xlTarget.inputFields.forEach(f => {
+		if (!f.isSecret) {
+			f.known = xlFieldInfo[f.name] !== undefined;
+			f.default = (xlFieldInfo[f.name] || {}).default;
+			xlFields[f.name] = f;
+		}
+	});
+
+
+	var mismatches = [ ];
+
+	_.keys(xlFields).forEach(name => {
+		if (
+			(xlFields[name] || {}).known && (classicFields[name] || {}).known && 
+			xlFields[name].valueType === classicFields[name].valueType &&
+			xlFields[name].valueType !== "GROUP_SCOPE"
+		) {
+			var xlValue = xlFields[name].value;
+			if (xlValue === undefined) { xlValue = xlFields[name].default; }
+
+			var classicValue = classicFields[name].value;
+			if (classicValue === undefined) { classicValue = classicFields[name].default; }
+
+			if (
+				xlFields[name].valueType === "STRING" &&
+				(xlFields[name].value || "").toLowerCase() === (xlTarget.name || "").toLowerCase() &&
+				(xlFields[name].value || "").toLowerCase() === (classicFields[name].value || "").toLowerCase()
+			) {
+				// special case which we accept. The string is the name which we tollerate sloppy case matching
+				// on.
+			} else {
+				// otherwise, it has to be exact
+				if (classicValue !== xlValue && classicValue !== undefined) {
+					mismatches.push(name);
+				}
+			}
+		}
+	});
+
+	if (mismatches.length === 0) {
+		return null; // nothing bad to remport
+	}
+
+	mismatches.sort();
+	return "Exists in XL but details differ from classic ("+mismatches.join(", ")+")";
+}
+
+
+var numMismatchedTargets = 0;
 
 classicDb.query("select distinct uuid, category, type, displayName, name, isScoped, json from targets order by category, type").forEach(row => {
 	// Filter out derived targets ..
@@ -131,7 +229,6 @@ classicDb.query("select distinct uuid, category, type, displayName, name, isScop
 		nKubeTurbo += 1;
 		choice.skipped = true;
 		choice.failed = true;
-//		choice.value = "[orange]" + row.category + " - " + row.type + " - " + row.name;
 		choice.message = "[orange::b]ACTION SUGGESTED[-::-] - KubeTurbo targets should be reconfigured manually";
 	}
 
@@ -160,16 +257,27 @@ classicDb.query("select distinct uuid, category, type, displayName, name, isScop
 		dispName = _fn_(dispName);
 	}
 
-	xlDb.query("select count(*) n from targets where name = ?", [row.name]).forEach(row2 => {
+	xlDb.query("select count(*) n from targets where lower(name) = lower(?) and type = ?", [row.name, row.type]).forEach(row2 => {
 		got = parseInt(row2.n);
 	});
 
 	if (got > 0) {
-		choice.message = sprintf("Target '%s' already exists - skipped\n", row.name);
-		choice.selected = false;
-		choice.skipped = true;
-		choice.exclude = true;
-		row.$EXCLUDE = true;
+		var msg = targetDetailsMatch(row.name, row.type);
+		if (msg === null) {
+			choice.message = sprintf("[orange::b]EXSITS[-::-] - Target already exists in XL");
+			choice.selected = false;
+			choice.skipped = true;
+			choice.exclude = true;
+			row.$EXCLUDE = true;
+		} else {
+			choice.message = sprintf("[red::b]ACTION REQUIRED[-::-] - "+msg);
+			choice.selected = false;
+			choice.skipped = true;
+			choice.exclude = true;
+			choice.failed = true;
+			row.$EXCLUDE = true;
+			numMismatchedTargets += 1;
+		}
 		return;
 	}
 
@@ -181,7 +289,6 @@ classicDb.query("select distinct uuid, category, type, displayName, name, isScop
 		choice.skipped = true;
 		choice.exclude = false;
 		choice.later = true;
-//		choice.value = "[orange]" + row.category + " - " + row.type + " - " + row.name;
 		return;
 	}
 
@@ -266,14 +373,33 @@ classicDb.query("select distinct uuid, category, type, displayName, name, isScop
 //	targets.push(row);
 });
 
-selection.choices = selection.choices.filter(c => { return c.exclude ? false : true; });
-targets = targets.filter(t => { return t.$EXCLUDE ? false : true; });
+// selection.choices = selection.choices.filter(c => { return c.exclude ? false : true; });
+// targets = targets.filter(t => { return t.$EXCLUDE ? false : true; });
 
-if (selection.choices.length === 0) {
+if (args_["count-only"]) {
+	var count = 0;
+	selection.choices.forEach(s => {
+		if (s.exclude === false && s.skipped === false) {
+			count +=1;
+		}
+	});
+	if (count === 0 && numMismatchedTargets === 0) {
+		lib.saveMetaData(xlDb, "migrate_targets_end_time", "" + (new Date()));
+		exit(111);	// migrate_targets not needed
+	}
+
+	exit(0);
+}
+
+
+var choosable = selection.choices.filter(c => { return c.exclude ? false : true; });
+
+if (choosable.length === 0) {
 	warning("No targets need migration");
 	lib.saveMetaData(xlDb, "migrate_targets_end_time", "" + (new Date()));
 	exit(1);
 }
+
 
 // Allow user to select any groups to be skipped or included.
 if (getenv("AUTO_SELECT_ALL_TARGETS") !== "true") {
@@ -292,6 +418,25 @@ if (getenv("AUTO_SELECT_ALL_TARGETS") !== "true") {
 			exit(1);
 		}
 		throw ex;
+	}
+
+	if (numMismatchedTargets > 0) {
+		warning("***************************************************************************************");
+		warning(sprintf("WARNING: %d targets in XL have configurations that dont match their classic equivalents", numMismatchedTargets));
+		warning("***************************************************************************************");
+		println("");
+		println("We strongly advise correcting these issues in XL before proceeding.");
+		println("");
+		println("Do you wish to disregard this warning and continue none the less?");
+		while (true) {
+			var yn = readLine("Enter 'y' or 'n': ");
+			if (yn === "n") {
+				exit(22);
+			}
+			if (yn === "y") {
+				break;
+			}
+		}
 	}
 }
 
@@ -445,7 +590,7 @@ targets.forEach(row => {
 		if (encryptionKey) {
 			xlTarget.inputFields.push({
 				"name": "encryptionKey",
-				"value": encryptionKey.join("")
+				"value": encryptionKey
 			});
 		}
 
@@ -538,6 +683,9 @@ targets.forEach(row => {
 		if (hasEncryptedFields) {
 			try {
 				var ep = "/migrations/targets";
+
+// printJson(xlTarget);
+
 				newTarget = client.http.post(ep, { disable_hateos: true }, xlTarget);
 			} catch (ex) {
 				exception = ex;
@@ -587,7 +735,7 @@ targets.forEach(row => {
 				while (true) {
 					var hint = "'k' or 'r' ? ";
 					println("How do you want to proceed?");
-					println(" k : Keep the target in it's failed state.");
+					println(" k : Keep the target in its failed state.");
 					if (args_["delete-failed"]) {
 						println(" d : Delete and skip the target.");
 						hint = "'k', 'r' or 'd' ? ";

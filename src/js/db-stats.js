@@ -85,7 +85,7 @@ stats.credsReady = true;
 stats.credsDone = fileExists("data/tbutil-credentials.json");
 
 stats.collect1Ready = stats.credsDone;
-stats.collect1Done = stats.xl1_db_ok === 1 && fileExists("logs/xl-collect-1.log");
+stats.collect1Done = stats.xl1_db_ok === 1 && fileExists("logs/xl-collect-1.log") && !fileExists("data/.redo-collect-1");
 
 stats.targets1Ready = stats.credsDone && stats.collect1Done;
 stats.targets1Done = stats.xl1_targets_migrated === 1 && stats.collect1Done;
@@ -117,7 +117,7 @@ stats.policiesDone = stats.xl3_policies_migrated === 1;
 stats.usersReady = (stats.collect3Done && stats.groups2Done) || (stats.collect2Done && !stats.targets2Needed && stats.groups1Done);
 stats.usersDone  = stats.xl3_users_migrated === 1;
 
-stats.reviewGroupsReady = stats.groups1Done;
+stats.reviewGroupsReady = stats.collect1Done;
 
 stats.exposeReportReady = stats.collect1Done;
 

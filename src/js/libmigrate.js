@@ -1,4 +1,5 @@
 exports.nameMap = JSON.parse(loadText("name-map.json").join("\n").replace(/\n/g, " ").replace(/\/\*.*?\*\//g, ""));
+exports.nameMap.excluded_group_names_re = exports.nameMap.excluded_group_names_res.join("|");
 
 exports.nameMap.target_cooker_script_lib = { };
 _.keys(exports.nameMap.target_cooker_script_map).forEach(typ => {
@@ -111,7 +112,7 @@ exports.createGroupTables = function(db) {
 	db.exec(`
 		create table groups (
 			className, uuid, displayName, groupType, environmentType,
-			isStatic, isCustom, isDiscovered, entitiesCount, membersCount, order_,
+			isStatic, isCustom, isDiscovered, entitiesCount, membersCount, order_, why,
 			json
 		)
 	`);
@@ -127,8 +128,8 @@ exports.createGroupTables = function(db) {
 	db.exec(`create unique index group_category_uuid on group_category ( uuid )`);
 };
 
-exports.saveGroup = function(db, g, order) {
-	var rtn = db.exec("replace into groups values (?, ?, ?, ?, ?, ?, ?, ?, cast(? as int), cast(? as int), cast(? as int), ?)",[
+exports.saveGroup = function(db, g, order, why) {
+	var rtn = db.exec("replace into groups values (?, ?, ?, ?, ?, ?, ?, ?, cast(? as int), cast(? as int), cast(? as int), ?, ?)",[
 		g.className,
 		g.uuid,
 		g.displayName,
@@ -140,6 +141,7 @@ exports.saveGroup = function(db, g, order) {
 		g.entitiesCount,
 		g.membersCount,
 		order,
+		why.join(", "),
 		JSON.stringify(g)
 	]);
 };
@@ -294,8 +296,6 @@ exports.saveTargetExtra = function(db, t) {
 	if (values.password === undefined && (t.credentials || {})["-password"] !== undefined) {
 		values.password = t.credentials["-password"];
 	}
-
-// if (t["-uuid"] === "_1FAH0Lx9Eeq386z7t8Gr_g") { debugger; }
 
 	db.exec("replace into targets_extra values (?, ?, ?, ?, ?, ?, ?, ?, ?)", [
 		t["-uuid"],
@@ -665,5 +665,11 @@ woops = function(str) {
 bar = function() {
 	colour("hiCyan");
 	print("|");
+	colour();
+};
+
+hash = function() {
+	colour("hiCyan");
+	print("#");
 	colour();
 };

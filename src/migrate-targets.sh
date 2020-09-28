@@ -1,5 +1,13 @@
 #! /bin/bash
 
+if [ "$1" = "-f" ]; then
+	force=true # potentially dangerous! You've been warned.
+	shift
+else
+	force=false
+fi
+
+
 . ./.env
 . bin/functions.sh
 
@@ -19,7 +27,7 @@ fi
 
 phase1() {
 	ready=$(bin/tbscript @null js/db-stats.js targets1Ready 2>/dev/null)
-	if [ "$ready" != "true" ]; then
+	if [ "$force" = "false" ] && [ "$ready" != "true" ]; then
 		echo "Not ready to run 'migrate-targets.sh 1' yet - refer to the documentation for the correct order"
 		exit 2
 	fi
@@ -30,14 +38,21 @@ phase1() {
 
 	rm -f "$xl2_db" "$xl3_db"
 
-	script -q -ec "../bin/tbscript \"$xl_cred\" migrate-targets.js \"$classic_db\" \"$xl1_db\"" -t"$logsdir/migrate-targets-1.tm" "$logsdir/migrate-targets-1.log"
-	return $?
+	script -q -ec "../bin/tbscript \"$xl_cred\" migrate-targets.js \"$classic_db\" \"$xl1_db\"" "$logsdir/migrate-targets-1.log"
+	stat=$?
+	../bin/cleanlog "$logsdir/migrate-targets-1.log"
+
+	if [ "$stat" = 22 ]; then
+		touch ../data/.redo-collect-1
+	fi
+
+	return $stat
 }
 
 
 phase2() {
 	ready=$(bin/tbscript @null js/db-stats.js targets2Ready 2>/dev/null)
-	if [ "$ready" != "true" ]; then
+	if [ "$force" = "false" ] && [ "$ready" != "true" ]; then
 		echo "Not ready to run 'migrate-targets.sh 2' yet - refer to the documentation for the correct order"
 		exit 2
 	fi
@@ -48,8 +63,10 @@ phase2() {
 
 	rm -f "$xl3_db"
 
-	script -q -ec "../bin/tbscript \"$xl_cred\" migrate-targets.js -include-scoped-targets \"$classic_db\" \"$xl2_db\"" -t"$logsdir/migrate-targets-2.tm" "$logsdir/migrate-targets-2.log"
-	return $?
+	script -q -ec "../bin/tbscript \"$xl_cred\" migrate-targets.js -include-scoped-targets \"$classic_db\" \"$xl2_db\"" "$logsdir/migrate-targets-2.log"
+	stat=$?
+	../bin/cleanlog "$logsdir/migrate-targets-2.log"
+	return $stat
 }
 
 

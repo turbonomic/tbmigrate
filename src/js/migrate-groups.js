@@ -5,6 +5,23 @@
 /* jshint -W119 */
 /* globals warning, success, error, note */
 
+var F = require("@/functions");
+
+usage = function() {
+	println("");
+	println("Usage is:");
+	println("");
+	println("  tbscript {xl-credentials} migrate-groups.js [-i] {classic-db-file} {xl-db-file}");
+	println("");
+	exit(2);
+};
+
+
+var args_ = F.extendedOptions("", "i");
+if (args_.remaining.length !== 2) {
+	usage();
+}
+
 if (!client.isXL()) {
 	woops("This isnt an XL instance");
 }
@@ -14,19 +31,19 @@ if (userInfo.roleName.toLowerCase() !== "administrator" && userInfo.roleName.toL
 	woops("Must be run by a user with Turbonomic administrator rights");
 }
 
-var namePrefix = ""; // "MIGRATED-";
-
 var P = plugin("sqlite3-plugin");
-var classicDb = P.open("file:"+args[0]+"?mode=rw");
-var xlDb = P.open("file:"+args[1]+"?mode=rw");
+var classicDb = P.open("file:"+args_.remaining[0]+"?mode=rw");
+var xlDb = P.open("file:"+args_.remaining[1]+"?mode=rw");
 
 var lib = require("./libmigrate.js");
 var cm = require("./group-creation-map.js");
 
 var groupClassRe = new RegExp(lib.nameMap.group_class_re);
 
-
 lib.disableAllActions(client, xlDb);
+
+var numGroups = 0;	// number of groups to be migrated
+var groupNum = 0;	// the number of the group being pushed.
 
 // =================================================================================
 
@@ -42,7 +59,7 @@ function mapGroupClass(cn) {
 function saveGroup(db, group) {
 	var g = _.deepClone(group);
 	g.isCustom = true;
-	lib.saveGroup(db, g, -1);
+	lib.saveGroup(db, g, -1, ["migrated"]);
 	lib.saveEntity(db, g);
 	(group.memberUuidList || []).forEach(m => {
 		lib.saveGroupMembership(db, g.uuid, m);
@@ -61,7 +78,7 @@ function copyStaticGroup(g, warn) {
 	if (warn) {
 		warning("   Warning: copying as a static group");
 	} else {
-		printf("\nCopy %v static group '%v' (%v)\n", parseInt(g.isCustom) ? "custom" : "system", namePrefix+g.displayName, g.groupType);
+		printf("\n[%d of %d] Copy %v static group '%v' (%v)\n", groupNum, numGroups, parseInt(g.isCustom) ? "custom" : "system", g.displayName, g.groupType);
 		if (copied[g.uuid]) {
 			success("   Already copied once - skipping");
 			return;
@@ -74,12 +91,12 @@ function copyStaticGroup(g, warn) {
 	var types = lib.getMemberTypes(classicDb, g.uuid);
 
 	if (types.length === 0) {
-		if (parseInt(g.entitiesCount) === 0) {
+//		if (parseInt(g.entitiesCount) === 0) {
 			types = [ g.groupType ];
-		} else {
-			error("   Error: cant determine member types - skipping");
-			return;
-		}
+//		} else {
+//			error("   Error: cant determine member types - skipping");
+//			return;
+//		}
 	}
 
 	if (types.length > 1) {
@@ -162,7 +179,6 @@ function copyStaticGroup(g, warn) {
 				numSkipped += 1;
 			} else if (uuids.length === 0) {
 				warning(sprintf("   Warning: no entity '%v::%v'%v found", cn, dn, rid2 ? " ("+rid2+")" : ""));
-debugger;
 				numSkipped += 1;
 			} else {
 				memberUuids.push(uuids[0]);
@@ -170,25 +186,39 @@ debugger;
 		}
 	});
 
+	var saidEmpty = false;
 	if (memberUuids.length === 0) {
 		if (parseInt(g.entitiesCount) === 0) {
 			success("   Success: Empty group created (also empty in classic)");
 		} else {
-			warning(sprintf("   Warning: Empty group created (but %v entities in classic).", g.entitiesCount));
+			warning(sprintf("   Warning: Empty group created (but %v entit%s in classic).", g.entitiesCount, parseInt(g.entitiesCount) === 1 ? "y" : "ies"));
 		}
+		saidEmpty = true;
 	}
 
-	var existing = lib.readGroup(xlDb, namePrefix+mapGroupName(g.displayName), xlGroupType);
+	var existing = lib.readGroup(xlDb, mapGroupName(g.displayName), xlGroupType);
 	if (existing !== null) {
 		var m1 = memberUuids || [];
 		m1.sort();
 		var m2 = existing.memberUuidList || [];
 		m2.sort();
 		if (m1.join("\n") === m2.join("\n")) {
-			if (existing.entitiesCount !== 0) {
-				lib.saveGroupMapping(xlDb, g.uuid, existing.uuid);
-				success(sprintf("   Success: group already exists and contains the expected %v entities", existing.entitiesCount));
+			if (existing.entitiesCount !== 0 || !saidEmpty) {
+				if (numSkipped > 0) {
+					warning(sprintf("   Warning: group already exists, is missing %d entit%s though the other %d match%s",
+						numSkipped,
+						numSkipped === 1 ? "y" : "ies",
+						existing.entitiesCount,
+						existing.entitiesCount === 1 ? "es" : ""
+					));
+				} else {
+					success(sprintf("   Success: group already exists and contains the expected %v entit%s",
+						existing.entitiesCount,
+						existing.entitiesCount === 1 ? "y" : "ies"
+					));
+				}
 			}
+			lib.saveGroupMapping(xlDb, g.uuid, existing.uuid);
 			return;
 		}
 	}
@@ -196,7 +226,7 @@ debugger;
 	var flag = existing === null ? "-create" : "-edit";
 	var name = g.displayName.replace(/\\/g, "/");
 	var groupDto = {
-	    "displayName": namePrefix+name,
+	    "displayName": name,
 	    "groupType": xlGroupType,
 	    "isStatic": true,
 	    "memberUuidList": memberUuids
@@ -214,7 +244,11 @@ debugger;
 	lib.saveGroupMapping(xlDb, g.uuid, newGroup.uuid);
 
 	if (newGroup.entitiesCount > 0) {
-		success(sprintf("   Success: group created and now contains %v entities (%v in classic)", newGroup.entitiesCount, g.entitiesCount));
+		success(sprintf("   Success: group created and now contains %d entit%s (%d in classic)",
+			newGroup.entitiesCount,
+			parseInt(newGroup.entitiesCount) === 1 ? "y" : "ies",
+			g.entitiesCount
+		));
 	}
 }
 
@@ -293,7 +327,7 @@ function mapCriteria(groupType, criteria) {
 
 
 function copyDynamicGroup(g, warn) {
-	printf("\nCopy %v dynamic group '%v' (%v)\n", parseInt(g.isCustom) ? "custom" : "system", namePrefix+g.displayName, g.groupType);
+	printf("\n[%d of %d] Copy %v dynamic group '%v' (%v)\n", groupNum, numGroups, parseInt(g.isCustom) ? "custom" : "system", g.displayName, g.groupType);
 	if (copied[g.uuid]) {
 		success("   Already copied once - skipping");
 		return;
@@ -402,10 +436,17 @@ function copyDynamicGroup(g, warn) {
 			if (parseInt(g.entitiesCount) === 0) {
 				success("   Success: Empty group created (also empty in classic)");
 			} else {
-				warning(sprintf("   Warning: Empty group (but %v entities in classic).", g.entitiesCount));
+				warning(sprintf("   Warning: Empty group (but %v entit%s in classic).",
+					g.entitiesCount,
+					parseInt(g.entitiesCount) === 1 ? "y" : "ies"
+				));
 			}
 		} else {
-			success(sprintf("   Success: group created and now contains %v entities (%v in classic)", createdGroup.entitiesCount, g.entitiesCount));
+			success(sprintf("   Success: group created and now contains %v entit%s (%v in classic)",
+				createdGroup.entitiesCount,
+				parseInt(createdGroup.entitiesCount) === 1 ? "y" : "ies",
+				g.entitiesCount
+			));
 		}
 	} else {
 		error("   Error: failed to create group");
@@ -422,17 +463,22 @@ function checkStaticGroupExists(g) {
 	var xlName = mapGroupName(g.displayName);
 	var xlType = mapGroupClass(g.groupType);
 
-	printf("\nCheck %v group '%v' (%v) exists\n", parseInt(g.isCustom) ? "custom" : "system", xlName, g.groupType);
+	printf("\n[%d of %d] Check %v group '%v' (%v) exists\n", groupNum, numGroups, parseInt(g.isCustom) ? "custom" : "system", xlName, g.groupType);
 
 	var found = lib.readGroup(xlDb, xlName, xlType);
 	var entitiesCount = null;
 	if (!found) {
-		found = client.findByName(g.className, xlName);
-		if (!found) {
+		found = client.findByName(g.className, xlName, true);
+		if (found.length === 0) {
 			warning("   Warning: Group not present in XL (see note #1 at end).");
 			showNote1 = true;
 			return;
 		}
+		if (found.length > 1) {
+			warning("   Warning: Group name is duplicated in XL.");
+			return;
+		}
+		found = found[0];
 		saveGroup(xlDb, found);
 	}
 	lib.saveGroupMapping(xlDb, g.uuid, found.uuid);
@@ -440,10 +486,17 @@ function checkStaticGroupExists(g) {
 		if (parseInt(g.entitiesCount) === 0) {
 			success("   Success: Empty group exists and is empty (also empty in classic)");
 		} else {
-			warning(sprintf("   Warning: Empty group exists (but %v entities in classic).", g.entitiesCount));
+			warning(sprintf("   Warning: Empty group exists (but %v entit%s in classic).",
+				g.entitiesCount,
+				parseInt(g.entitiesCount) === 1 ? "y" : "ies"
+			));
 		}
 	} else {
-		success(sprintf("   Success: group exists and contains %v entities (%v in classic)", found.entitiesCount, g.entitiesCount));
+		success(sprintf("   Success: group exists and contains %v entit%s (%v in classic)",
+			found.entitiesCount,
+			parseInt(found.entitiesCount) === 1 ? "y" : "ies",
+			g.entitiesCount
+		));
 	}
 }
 
@@ -476,7 +529,7 @@ function copyRelationalGroup(g) {
 	g = _.deepClone(g);
 
 	var cat = (g.category || "").trimPrefix("GROUP-");
-	printf("\nMigrate %v group '%v' (%v)\n", parseInt(g.isCustom) ? "custom" : "system", namePrefix+g.displayName, cat || g.groupType);
+	printf("\n[%d of %d] Migrate %v group '%v' (%v)\n", groupNum, numGroups, parseInt(g.isCustom) ? "custom" : "system", g.displayName, cat || g.groupType);
 	if (copied[g.uuid]) {
 		success("   Already copied once - skipping");
 		return;
@@ -538,10 +591,17 @@ function copyRelationalGroup(g) {
 			if (parseInt(g.entitiesCount) === 0) {
 				success("   Success: Empty group created (also empty in classic)");
 			} else {
-				warning(sprintf("   Warning: Empty group created (but %v entities in classic).", g.entitiesCount));
+				warning(sprintf("   Warning: Empty group created (but %v entit%s in classic).",
+					g.entitiesCount,
+					parseInt(g.entitiesCount) === 1 ? "y" : "ies"
+				));
 			}
 		} else {
-			success(sprintf("   Success: group created and now contains %v entities (%v in classic)", newGroup.entitiesCount, g.entitiesCount));
+			success(sprintf("   Success: group created and now contains %v entit%s (%v in classic)",
+				newGroup.entitiesCount,
+				parseInt(newGroup.entitiesCount) === 1 ? "y" : "ies",
+				g.entitiesCount
+			));
 		}
 	} else {
 		error("   Error: failed to create group");
@@ -562,12 +622,21 @@ groups.forEach(g => {
 	groupCountByName[name] += 1;
 });
 
+var nErrors = 0;
+
 var names  =_.keys(groupCountByName);
 names.sort();
 names.forEach(n => {
 	if (groupCountByName[n] > 1) {
-		error(sprintf("Error: group name '%s' is duplicated - not migrated\n", n));
-
+		nErrors += 1;
+		error(sprintf("Error: group name '%s' is duplicated in Classic - Not migrated", n));
+		var ng = parseInt(xlDb.query("select count(*) n from groups where displayName = ?", [ mapGroupName(n) ])[0].n);
+		if (ng === 0) {
+			error("       (and there are no existing groups in XL with that name)");
+		} else {
+			error(sprintf("       (but %d existing groups%s that name in XL)", ng, ng > 1 ? "s have" : " has"));
+		}
+		println("");
 	}
 });
 
@@ -576,47 +645,105 @@ groups = groups.filter(g => {
 	return groupCountByName[name] === 1;
 });
 
-/*
-// Uuids of groups that are used as scopes.
-var scopeGroups = { };
-classicDb.query(`
-	select * from groups where uuid in (
-		select groupUuid from policy_scopes
-		union select groupUuid from settings_scopes
-		union select groupUuid from target_scopes
-		union select groupUuid from user_group_scopes
-		union select groupUuid from user_scopes
-	) and isCustom = 1;
-`).forEach(row => {
-	scopeGroups[row.uuid] = sprintf(
-		"%s - %v[-] - [blue]%d entities[-]",
-		row.displayName,
-		parseInt(row.isStatic) ? "[green]Static" : "[orange]Dynamic",
-		parseInt(row.entitiesCount)
-	);
-});
-
-var selection = { title: "Select the optional groups you wish to migrate", choices: [] };
-_.keys(scopeGroups).forEach(uuid => {
-	selection.choices.push({
-		key: uuid,
-		value: scopeGroups[uuid],
-		selected: false
-	});
-});
-
-selection.choices.sort((a, b) => {
-	var aa = a.value.toLowerCase();
-	var bb = b.value.toLowerCase();
+groups.sort((a, b) => {
+	var aa = a.displayName.toLowerCase();
+	var bb = b.displayName.toLowerCase();
 	if (aa < bb) { return -1; }
 	if (aa > bb) { return 1; }
 	return 0;
 });
 
+if (args_.i) {
+	if (nErrors > 0) {
+		while (true) {
+			var yn = null;
+			try {
+				yn = readLine("Continue anyway (y/n)? ");
+			} catch (ex) {
+				if (ex.message !== "EOF") {
+					throw ex;
+				}
+			}
+			println("");
+			if (yn === null || yn.toLowerCase().hasPrefix("n")) {
+				exit(1);
+			}
+			if (yn.toLowerCase().hasPrefix("y")) {
+				break;
+			}
+			println("Retry.. please enter 'y' or 'n'");
+		}
+	}
+
+	// Uuids of groups that are used as scopes.
+	var scopeGroups = { };
+	classicDb.query(`
+		select groupUuid from policy_scopes
+		union select groupUuid from settings_scopes
+		union select groupUuid from target_scopes
+		union select groupUuid from user_group_scopes
+		union select groupUuid from user_scopes
+	`).forEach(row => {
+		scopeGroups[row.groupUuid] = true;
+	});
+	
+	var selection = {
+		choices: [ ],
+		title: "Select the optional groups to migrate"
+	};
+	
+	var preSelected = { };
+	var preSelectedFound = false;
+	classicDb.query(`select json from metadata where name = "selected_groups"`).forEach(row => {
+		preSelected = JSON.parse(row.json);
+		preSelectedFound = true;
+	});
+	
+	
+	var rows = _.deepClone(groups);
+	rows.forEach(row => {
+			var dn = row.displayName;
+			if (dn.length < 60) {
+				dn = (dn + "                                                              ").left(60);
+			}
+			var prompt = sprintf(
+				"%s - %v[-] - [yellow]%d entities[-]",
+				dn,
+				parseInt(row.isStatic) ? "[green]Static " : "[purple]Dynamic",
+				parseInt(row.entitiesCount)
+			);
+
+			var message = "Optional group, can be de-selected";
+			var forced = false;
+	
+			var n = parseInt(xlDb.query("select count(*) n from group_uuid_mapping where classicUuid = ?", [ row.uuid ])[0].n);
+			if (n > 0) {
+				forced = true;
+				message = "Group already exists";
+			} else if (scopeGroups[row.uuid]) {
+				forced = true;
+				message = "Mandatory group - scopes a policy, setting, target or user";
+			}
+	
+			selection.choices.push({
+				key: row.uuid,
+				value: prompt,
+				selected: preSelectedFound === false || preSelected[row.uuid],
+				forced: forced,
+				message: message
+			});
+	});
+	
+	if (selection.choices.length === 0) {
+		println("No groups require migration");
+		lib.saveMetaData(xlDb, "migrate_groups_end_time", "" + (new Date()));
+		exit(0);
+	}
+	
 	var f = tempFile(JSON.stringify(selection));
 	try {
 		print("<SELECTOR_START>\r                     \r");
-		commandPipe("./select", [f.path()]);
+		commandPipe("./select", ["-s", f.path()]);
 		print("<SELECTOR_END>\r                      \r");
 		selection = loadJson(f.path());
 		f.clean();
@@ -629,27 +756,50 @@ selection.choices.sort((a, b) => {
 		}
 		throw ex;
 	}
+	
+	preSelected = { };
+	selection.choices.forEach(c => {
+		preSelected[c.key] = c.selected;
+	});
+	classicDb.exec("replace into metadata values (?, ?)", [ "selected_groups", JSON.stringify(preSelected)]);
 
-debugger;
-*/
+	groups = groups.filter(g => {
+		return preSelected[g.uuid] ? true : false;
+	});
+}
 
+numGroups = groups.length;
+groupNum = 0;
+
+if (numGroups === 0) {
+	println("\nNo groups selected for migration");
+	lib.saveMetaData(xlDb, "migrate_groups_end_time", "" + (new Date()));
+	exit(0);
+}
+
+printf("\n%d groups selected for migration\n", numGroups);
 
 groups.forEach(g => {
 	if (g.category) {
+		groupNum += 1;
 		copyRelationalGroup(g);
 	}
 });
 
 groups.forEach(g => {
 	if (parseInt(g.isCustom) !== 0 && parseInt(g.isStatic) === 1 && !g.category) {
+		groupNum += 1;
 		copyStaticGroup(g, false);
 	} else if (parseInt(g.isCustom) === 0 && parseInt(g.isStatic) === 1 && !g.category) {
+		groupNum += 1;
 		checkStaticGroupExists(g);
 	} else if (g.category) {
 		// we did it earlier  :)
 	} else if (g.isStatic !== "1") {
+		groupNum += 1;
 		copyDynamicGroup(g, false);
 	} else {
+		groupNum += 1;
 		error(sprintf("\nError: %s group '%s' not migrated", parseInt(g.isStatic) === 1 ? "static" : "dynamic", g.displayName));
 	}
 });

@@ -21,7 +21,21 @@
 		"storageResources": [ "numDiskSize", "storageAmount" ]
 	},
 
-	"excluded_group_names_re": "^(AvailabilitySet::|AzureScaleSet::|GROUP-DESKTOPPOOL-|Region .* Expired Promo Templates$|Sellers-Group-GROUP-DRS-|Buyers-Group-GROUP-DRS-)",
+
+	/********************************************************************************************
+		SqLite RE for groups to be excluded.
+		NB: the array elements are joined using a "|" before use to make a single RE string
+	*********************************************************************************************/
+
+	"excluded_group_names_res": [
+		"^AvailabilitySet::",
+		"^AzureScaleSet::",
+		"^GROUP-DESKTOPPOOL-",
+		"^Region .* Expired Promo Templates$",
+		"^Sellers-Group-GROUP-DRS-",
+		"^Buyers-Group-GROUP-DRS-",
+		"-vSAN-Cluster-"
+	],
 
 
 	/********************************************************************************************
@@ -47,6 +61,7 @@
 	*********************************************************************************************/
 
 	"excluded_placement_policy_name_res": [
+		"/.*?-vSAN-Cluster-"
 	],
 
 
@@ -102,6 +117,7 @@
 		"WMI": "scope-cooker.js",
 		"SQLServer": "scope-cooker.js",
 		"AppDynamics": "simple-defaults-cooker.js",
+		"Dynatrace": "simple-defaults-cooker.js",
 		"Nutanix": "simple-defaults-cooker.js"
 	},
 
