@@ -6,7 +6,7 @@
 //			then again: handling scoped targets. (if there are any to migrate)
 
 /* jshint -W083, -W080, -W061 */
-/* globals title, error, warning, success, note */
+/* globals title, titleOf, error, warning, success, note */
 
 var lib = require("./libmigrate.js");
 var F = require("@/functions");
@@ -48,6 +48,8 @@ var userInfo = client.http.get("/users/me", { });
 if (userInfo.roleName.toLowerCase() !== "administrator" && userInfo.roleName.toLowerCase() !== "site_admin") {
 	woops("Must be run by a user with Turbonomic administrator rights");
 }
+
+var scopeCooker = require("./scope-cooker.js");
 
 
 // Refresh the list of known probe types (in case the user has added some using "Helm" since we last collected data).
@@ -257,11 +259,7 @@ classicDb.query("select distinct uuid, category, type, displayName, name, isScop
 		dispName = _fn_(dispName);
 	}
 
-	xlDb.query("select count(*) n from targets where lower(name) = lower(?) and type = ?", [row.name, row.type]).forEach(row2 => {
-		got = parseInt(row2.n);
-	});
-
-	if (got > 0) {
+	if (lib.targetExists(xlDb, row.name, row.type)) {
 		var msg = targetDetailsMatch(row.name, row.type);
 		if (msg === null) {
 			choice.message = sprintf("[orange::b]EXSITS[-::-] - Target already exists in XL");
@@ -281,16 +279,16 @@ classicDb.query("select distinct uuid, category, type, displayName, name, isScop
 		return;
 	}
 
-	if (parseInt(row.isScoped) === 1 && !args_["include-scoped-targets"]) {
-		nSkipped += 1;
-		numSkippedScoped += 1;
-		choice.message = "[orange::b]MIGRATE LATER[-::-] - Target is scoped (the opportunity to migrate it comes AFTER groups are migrated)";
-		choice.selected = false;
-		choice.skipped = true;
-		choice.exclude = false;
-		choice.later = true;
-		return;
-	}
+//	if (parseInt(row.isScoped) === 1 && !args_["include-scoped-targets"]) {
+//		nSkipped += 1;
+//		numSkippedScoped += 1;
+//		choice.message = "[orange::b]MIGRATE LATER[-::-] - Target is scoped (the opportunity to migrate it comes AFTER groups are migrated)";
+//		choice.selected = false;
+//		choice.skipped = true;
+//		choice.exclude = false;
+//		choice.later = true;
+//		return;
+//	}
 
 	var classicTarget = JSON.parse(row.json);
 	var classicFields = getTargetFields(classicDb, row.category, row.type);
@@ -326,6 +324,17 @@ classicDb.query("select distinct uuid, category, type, displayName, name, isScop
 		choice.selected = false;
 		choice.skipped = true;
 		choice.failed = true;
+		return;
+	}
+
+	if (parseInt(row.isScoped) === 1 && !args_["include-scoped-targets"]) {
+		nSkipped += 1;
+		numSkippedScoped += 1;
+		choice.message = "[orange::b]MIGRATE LATER[-::-] - Target is scoped (the opportunity to migrate it comes AFTER groups are migrated)";
+		choice.selected = false;
+		choice.skipped = true;
+		choice.exclude = false;
+		choice.later = true;
 		return;
 	}
 
@@ -552,6 +561,8 @@ targets.forEach(row => {
 	try {
 		if (lib.nameMap.target_cooker_script_lib[row.type]) {
 			lib.nameMap.target_cooker_script_lib[row.type].cook(fieldsByName, classicFields, xlFields, classicDb, xlDb, row.type);
+		} else if (parseInt(row.isScoped) === 1) {
+			scopeCooker.cook(fieldsByName, classicFields, xlFields, classicDb, xlDb, row.type);
 		}
 	} catch (ex) {
 		error(ex.message);
@@ -601,7 +612,7 @@ targets.forEach(row => {
 		var hasEncryptedFields = false;
 
 		println("");
-		title(sprintf("%s::%s -- '%s'\n", foundCategory, xlType, row.displayName));
+		titleOf(count, sprintf("%s::%s -- '%s'\n", foundCategory, xlType, row.displayName));
 
 		// Fill out the inputFields of the DTO
 
@@ -666,7 +677,12 @@ targets.forEach(row => {
 						addField(f.name, false, null, 5);
 					}
 				} else {
-					printf("%-40.40s = %v\n", f.displayName, f.value);
+					if (f._displayValue) {
+						printf("%-40.40s = %v (%v)\n", f.displayName, f._displayValue, f.value);
+						delete f._displayValue;
+					} else {
+						printf("%-40.40s = %v\n", f.displayName, f.value);
+					}
 					addField(f.name, false, f.value, 6);
 				}
 			}
@@ -683,19 +699,20 @@ targets.forEach(row => {
 		if (hasEncryptedFields) {
 			try {
 				var ep = "/migrations/targets";
-
-// printJson(xlTarget);
-
 				newTarget = client.http.post(ep, { disable_hateos: true }, xlTarget);
 			} catch (ex) {
 				exception = ex;
 			}
 		} else {
-			var rtn = client.tbutil("import target", true, [ "-j", "-create", JSON.stringify(xlTarget) ]);
-			if (rtn.status === 0) {
-				newTarget = JSON.parse(rtn.out);
-			} else {
-				exception = rtn;
+			try {
+				var rtn = client.tbutil("import target", true, [ "-j", "-create", JSON.stringify(xlTarget) ]);
+				if (rtn.status === 0) {
+					newTarget = JSON.parse(rtn.out);
+				} else {
+					exception = rtn;
+				}
+			} catch (ex) {
+				exception = ex;
 			}
 		}
 
@@ -744,13 +761,21 @@ targets.forEach(row => {
 					var choice = readLine(hint).toLowerCase();
 
 					if (choice === "d" && args_["delete-failed"]) {
-						client.deleteTarget(newTarget.uuid);
+						try {
+							client.deleteTarget(newTarget.uuid);
+						} catch (ex) {
+							printJson(ex);
+						}
 						keepTrying = false;
 						break;
 					}
 
 					if (choice === "r") {
-						client.deleteTarget(newTarget.uuid);
+						try {
+							client.deleteTarget(newTarget.uuid);
+						} catch (ex) {
+							printJson(ex);
+						}
 						keepTrying = true;
 						break;
 					}
@@ -768,7 +793,11 @@ targets.forEach(row => {
 				println("");
 				keepTrying = false;
 				if (args_["delete-failed"]) {
-					client.deleteTarget(newTarget.uuid);
+					try {
+						client.deleteTarget(newTarget.uuid);
+					} catch (ex) {
+						printJson(ex);
+					}
 				} else {
 					lib.saveTarget(xlDb, newTarget);
 				}

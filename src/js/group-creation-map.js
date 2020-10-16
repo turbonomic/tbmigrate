@@ -25,26 +25,19 @@ var _this = {
 		return this.dynamicGroup("PhysicalMachine", match, filterType, dispName);
 	},
 
-/*
-	copyByTarget: function(type, name, clazz) {
-		this.type = type;
-		this.name = name;
-		this.clazz = clazz;
-	},
-*/
 
 	creatorMap: {
-		"AppByPM": null,
+		"AppByPM": function(g) { throw "Dynamic 'Application' groups are not migratable"; },
 
-		"ApplicationByPhysicalMachine": null,
+		"ApplicationByPhysicalMachine": function(g) { throw "Dynamic 'Application' groups are not migratable"; },
 
-		"ApplicationByType": null,
+		"ApplicationByType": function(g) { throw "Dynamic 'Application' groups are not migratable"; },
 
-		"ApplicationServerByType": null,
+		"ApplicationServerByType": function(g) { throw "Dynamic 'Application' groups are not migratable"; },
 
-		"AppsByDataCenter": null,
+		"AppsByDataCenter": function(g) { throw "Dynamic 'Application' groups are not migratable"; },
 
-		"AppsByTarget": null,
+		"AppsByTarget": function(g) { throw "Dynamic 'Application' groups are not migratable"; },
 
 		"ChassisByNetwork": null,
 
@@ -303,20 +296,101 @@ var _this = {
 
 		"VMsByTarget": null,
 
-//		"VMsByTarget": function(g) {
-//			var f = g.displayName.trimPrefix("VMs_").split(":");
-//			if (f.length === 2) {
-//				return new _this.copyByTarget(f[0], f[1], "VirtualMachine");
-//			} else {
-//				return null;
-//			}
-//		},
-
 		"VMsByTargetType": null,
 
 		"WorkloadByAccount": null,
 
 		"WorkloadByResourceGroup": null
+	},
+
+
+	allCloud: function(g, type, filter, exprVal) {
+		g = JSON.parse(g.json);
+		if (!g.isStatic && !g.criteriaList && g.groupType === type) {
+			return {
+			    "className": "Group",
+			    "criteriaList": [
+			        {
+			            "caseSensitive": false,
+			            "expType": "EQ",
+			            "expVal": exprVal,
+			            "filterType": filter,
+			            "singleLine": false
+			        }
+			    ],
+			    "displayName": g.displayName,
+			    "entityTypes": [ type ],
+			    "groupType": type,
+			    "isStatic": false,
+			    "logicalOperator": "AND",
+			    "memberTypes": [ type ]
+			};
+		}
+		return null;	// otherwise static
+	},
+
+
+	hotAdd: function(g, filter) {
+		return {
+		    "className": "Group",
+		    "criteriaList": [{
+	            "caseSensitive": false,
+	            "entityType": null,
+	            "expType": "EQ",
+	            "expVal": "true",
+	            "filterType": filter,
+	            "singleLine": false
+	        }],
+		    "displayName": g.displayName,
+		    "entityTypes": [ "VirtualMachine" ],
+		    "groupType": "VirtualMachine",
+		    "isStatic": false,
+		    "logicalOperator": "AND",
+		    "memberTypes": [ "VirtualMachine" ]
+		};
+	},
+
+	allEntitiesOfType: function(g, type) {
+		return {
+		    "className": "Group",
+		    "criteriaList": [],
+		    "displayName": g.displayName,
+		    "entityTypes": [ type ],
+		    "groupType": type,
+		    "isStatic": false,
+		    "logicalOperator": "AND",
+		    "memberTypes": [ type ]
+		};
+	},
+
+	// Refer to DefaultGroups.group.topology on classic. Names here must match group internal names in that filse
+	// (stripped of the "GROUP-" prefix).
+	defaultGroupsByName: {
+		"CloudDBSs": function(g) { return _this.allCloud(g, "DatabaseServer", "databaseServerByCloudProvider", "AZURE|AWS"); },
+		"CloudDBs": function(g) { return _this.allCloud(g, "Database", "databaseByCloudProvider", "AZURE"); },
+		"CloudPMs": function(g) { return _this.allCloud(g, "Zone", "zoneByCloudProvider", "AZURE|AWS|SOFTLAYER"); },
+		"CloudVMs": function(g) { return _this.allCloud(g, "VirtualMachine", "vmsByCloudProvider", "AZURE|AWS"); },
+
+		// Workloads are VMs, DBs and DBSs
+		"CloudWorkloads": null,
+		"CloudSTs": null,
+		"CloudDAs": null,
+
+		// Hot add groups
+		"VimVMHotAddMem": function(g) { return _this.hotAdd(g, "vmsHotAddMemory" ); },
+		"VimVMHotAddCPU": function(g) { return _this.hotAdd(g, "vmsHotAddCPU" ); },
+
+		// In XL hosts are "ON Prem" by definition - so this is equivalent to "all hosts"
+		"OnPremPMs": function(g) { return _this.allEntitiesOfType(g, "PhysicalMachine"); },
+		"BusinessApplication": function(g) { return _this.allEntitiesOfType(g, "BusinessApplication"); },
+
+		// Includes Application, ApplicationServer, DatabaseServer in classic
+		"Application": function(g) { throw "System 'Application' groups are not migratable"; },
+		"ApplicationByPhysicalMachine": function(g) { throw "System 'Application' groups are not migratable"; },
+		"ApplicationByType": function(g) { throw "System 'Application' groups are not migratable"; },
+		"ApplicationServer": function(g) { throw "System 'Application' groups are not migratable"; },
+		"ApplicationServerByType": function(g) { throw "System 'Application' groups are not migratable"; }
+
 	}
 };
 

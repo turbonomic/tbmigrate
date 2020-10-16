@@ -24,5 +24,9 @@ exports.cook = function(fieldsByName, classicFields, xlFields, classicDb, xlDb) 
 		if (numEntities === 0) {
 			throw new Error("Scope group is empty in XL");
 		}
+
+		xlDb.query("select displayName from entities where uuid = ?", [fieldsByName.targetEntities.value]).forEach(row3 => {
+			fieldsByName.targetEntities._displayValue = row3.displayName;
+		});
 	}
 };

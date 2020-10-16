@@ -1,16 +1,6 @@
-Thu 24 Sep 18:50:38 BST 2020
-commit b6f97aa863124c948edeb997f8a6a9ad9c997e43 (HEAD -> master, origin/master, origin/HEAD)
+Mon 12 Oct 15:10:24 BST 2020
+commit 2541af7168d620b44d2c9caf861dc4c97afc6fa1 (HEAD -> master)
 Author: Chris Lowth <chris.lowth@turbonomic.com>
-Date:   Thu Sep 24 18:44:41 2020 +0100
+Date:   Mon Oct 12 15:09:48 2020 +0100
 
-    Mainly work on "TBMigrate 3.5" and supporting changes to "tbutil".
-    
-    - Addition of "-scope" flag to tbutil's "list entities" commands.
-    - Two new tbutil built-in "-s" filter scripts: "@/uuids" and "@/count". The "-s" flag handler now correctly handles this syntax.
-    - TBMigrate changes..
-      - New field "why" in "groups" table - to facilitate debugging of group creation issues.
-      - "collect" script collects details of ALL existing groups from XL - to allow more accurate warnings when name duplicate causes problems.
-      - "migrate-targets" now looks for a match on target names using case-insensitve comparision (in an attempt to be more forgiving about the names of pre-migrated targets).
-      - "migrate-targets" now checks all target fields common to XL and Classic for existing XL targets and reports on mis-matches, advision the user to correct them before proceeding.
-      - Targets of different types but the same name caused problems in 3.4 and earlier - this is now resolved.
-      - "migrate-targets" selector marks targets that cant be migrated for reasons of failure or mismatch using a red coloured "Err" flag rather than just an "X".
+    TBMigrage 3.7 - Updated version code in tbutil's README.md

@@ -70,16 +70,29 @@ classicDb.query(sql1, [ lib.nameMap.excluded_group_names_re ]).forEach(classicGr
 		}
 	}
 
+	if (xlGroup) {
+		xlGroup.count = xlGroup.entitiesCount;
+	}
+	classicGroup.count = classicGroup.entitiesCount;
+
+	// Some groups should be compared via the direct members rather than leaf entities
+	if (classicGroup.groupType === "BusinessAccount") {
+		if (xlGroup) {
+			xlGroup.count = xlGroup.membersCount;
+		}
+			classicGroup.count = classicGroup.membersCount;
+	}
+
 	var diff = null;
 	if (xlGroup !== null) {
-		diff = parseInt(xlGroup.entitiesCount) - parseInt(classicGroup.entitiesCount);
+		diff = parseInt(xlGroup.count) - parseInt(classicGroup.count);
 	}
 
 	rows.push([
 		classicGroup.displayName.limitLength(65),
 		classicGroup.category ? category : classicGroup.groupType,
-		classicGroup.entitiesCount,
-		xlGroup === null ? "-" : xlGroup.entitiesCount,
+		classicGroup.count,
+		xlGroup === null ? "-" : xlGroup.count,
 		xlGroup === null ? "-" : diff,
 		type
 	]);

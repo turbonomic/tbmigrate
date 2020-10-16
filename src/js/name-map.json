@@ -113,9 +113,12 @@
 	"target_cooker_script_map": {
 		"AWS": "aws-cooker.js",
 		"vCenter": "vcenter-cooker.js",
+
+		/* the next 3 entries are now redundant. The scope-cooker.js is automatically called for any scoped target */
 		"SNMP": "scope-cooker.js",
 		"WMI": "scope-cooker.js",
 		"SQLServer": "scope-cooker.js",
+
 		"AppDynamics": "simple-defaults-cooker.js",
 		"Dynatrace": "simple-defaults-cooker.js",
 		"Nutanix": "simple-defaults-cooker.js"

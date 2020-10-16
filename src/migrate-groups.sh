@@ -46,7 +46,7 @@ phase1() {
 	roll_logs migrate-groups-1
 
 	cd js || exit 2
-	script -q -c "../bin/tbscript \"$xl_cred\" migrate-groups.js $iopt \"$classic_db\" \"$xl2_db\"" "$logsdir"/migrate-groups-1.log
+	script -q -c "../bin/tbscript \"$xl_cred\" migrate-groups.js $iopt -skip-scoped-targets \"$classic_db\" \"$xl2_db\"" "$logsdir"/migrate-groups-1.log
 	../bin/cleanlog "$logsdir/migrate-groups-1.log"
 
 }

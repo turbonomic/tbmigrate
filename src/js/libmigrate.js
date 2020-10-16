@@ -49,16 +49,22 @@ exports.createEntityTable = function(db) {
 
 exports.saveEntity = function(db, e) {
 	if (!e.remoteId && e.vendorIds) {
-		var dn = (e.discoveredBy || {}).displayName;
-		var rid = undefined;
-		if (dn) {
-			rid = (e.vendorIds || {})[dn];
+		var ids = { };
+		_.keys(e.vendorIds || {}).forEach(k => {
+			ids[e.vendorIds[k]] = true;
+		});
+		ids = _.keys(ids);
+		if (ids.length === 1) {
+			e.remoteId = ids[0];
 		}
-		if (!rid) {
-			rid = _.values(e.vendorIds).join(",");
-		}
-		e.remoteId = rid;
 	}
+
+	if (e.discoveredBy) {
+		db.query("select name from targets where uuid = ?", [ e.discoveredBy.uuid ]).forEach(row => {
+			e.discoveredBy.name = row.name;
+		});
+	}
+
 	db.exec("replace into entities values (?, ?, ?, ?, ?, ?, ?)", [
 		e.className,
 		e.uuid,
@@ -213,6 +219,16 @@ exports.saveProbe = function(db, p) {
 	});
 };
 
+
+// Does the target exist?
+exports.probeExists = function(db, name, type) {
+	db.query("select count(*) n from targets where lower(name) = lower(?) and type = ?", [name, type]).forEach(row => {
+		got = parseInt(row.n);
+	});
+	return got > 0;
+};
+
+
 // =====================================================================================
 
 exports.createTargetTables = function(db) {
@@ -258,6 +274,17 @@ exports.isTargetScoped = function(t) {
 	return isScoped;
 };
 
+// Is the target scoped (for given target uuid)?
+exports.targetIsScopedByUuid = function(db, uuid) {
+	var isScoped = null;
+	var name = null;
+	db.query("select isScoped, name from targets where uuid = ?", [uuid]).forEach(row => {
+		isScoped = parseInt(row.isScoped) !== 0;
+		name = row.name;
+	});
+	return isScoped;
+};
+
 exports.saveTarget = function(db, t) {
 	db.exec("replace into targets values (?, ?, ?, ?, ?, ?, ?)", [
 		t.category,
@@ -278,6 +305,14 @@ exports.saveTargetScope = function(db, targetUuid, fieldName, groupUuid, found) 
 		groupUuid,
 		found
 	]);
+};
+
+// Does the target exist?
+exports.targetExists = function(db, name, type) {
+	db.query("select count(*) n from targets where lower(name) = lower(?) and type = ?", [name, type]).forEach(row => {
+		got = parseInt(row.n);
+	});
+	return got > 0;
 };
 
 // =====================================================================================
@@ -617,6 +652,14 @@ var subTitleNum = 1;
 title = function(str) {
 	colour("magenta", "bold");
 	printf("%d: %s", titleNum ++, str);
+	colour();
+	println();
+	subTitleNum = 1;
+};
+
+titleOf = function(num, str) {
+	colour("magenta", "bold");
+	printf("[%d of %d]: %s", titleNum ++, num, str);
 	colour();
 	println();
 	subTitleNum = 1;

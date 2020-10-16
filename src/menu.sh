@@ -100,6 +100,14 @@ while : ; do
 	waitAtEnd=true
 
 	if [ "$opt" = "" ]; then
+		rm -rf text-logs
+		mkdir text-logs
+		(
+			for f in logs/*.log; do
+				sed "s,\x1B\[[0-9;]*m,,g" < "$f" > "text-$f"
+			done
+		) > /dev/null 2>&1
+
 		exit 0
 	fi
 
@@ -228,6 +236,21 @@ while : ; do
 
 	elif [ $(expr "$opt" : "viewlog ") = 8 ]; then
 		eval $opt
+
+	elif [ "$opt" = "zip-logs" ]; then
+		clear
+		tar cvfz /tmp/tbmigrate-logs.tgz data logs text-logs `[ -f .version ] && echo .version`
+		x="${yellow}*${reset}"
+		echo
+		echo "${yellow}*********************************************************************************"
+		echo "*                                      NOTE                                     *"
+		echo "*********************************************************************************${reset}"
+		echo "${x}                                                                               ${x}"
+		echo "${x} The file 'tbmigrate-logs.tgz' in the /tmp directory now contains the data and ${x}"
+		echo "${x} log files needed by Turbonomic support to review your migration status.       ${x}"
+		echo "${x}                                                                               ${x}"
+		echo "${yellow}*********************************************************************************${reset}"
+		echo
 
 	fi
 

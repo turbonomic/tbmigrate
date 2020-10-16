@@ -73,6 +73,8 @@ var groupCategories = { };	// UUID->Category mapping for groups who are direct m
 // - or are "system" groups that has no creator function.
 
 function needMembers(g) {
+	var rtn = false;
+
 	// of course, we always need to know the members of static groups.
 
 	if (g.isStatic) { return true; }
@@ -86,30 +88,57 @@ function needMembers(g) {
 		return true;
 	}
 
-	// if no targetCriteria file specified on the command - pretend we dont need them since
-	// we cant tell otherwise.
+	
+	// Check to see whether or not we can support this group as dyanmic in XL (if a target criteria
+	// file has been specified on the command line).
 
-	if (!targetCriteria) { return false; }
-
-
-	// Check to see whether or not we can support this group as dyanmic in XL.
-
-	var rtn = false;
-
-	(g.criteriaList || []).forEach(groupCritera => {
-		var filterType = groupCritera.filterType;
-		var matched = false;
-		var c = ((targetCriteria[g.groupType] || {}).criteria || []).forEach(c => {
-			if (c.filterType === filterType) {
-				matched = true;
+	if (targetCriteria) {
+		(g.criteriaList || []).forEach(groupCritera => {
+			var filterType = groupCritera.filterType;
+			var matched = false;
+			var c = ((targetCriteria[g.groupType] || {}).criteria || []).forEach(cr => {
+				if (cr.filterType === filterType) {
+					matched = true;
+				}
+			});
+			if (!matched) {
+				rtn = true;
 			}
 		});
-		if (!matched) {
-			rtn = true;
+	}
+
+	// If this is a default group and the group-creation-map file's "defaultGroupsByName" section has a "null"
+	// value, then we'll be creating this as a static group - so we need to know it's members in classic.
+
+	if (rtn === false) {
+		var iname = defaultGroupUuids[g.uuid];
+		if (iname) {
+			var fn = cm.defaultGroupsByName[iname.trimPrefix("GROUP-")];
+			if (fn === null) {
+				rtn = true;
+			}
 		}
-	});
+	}
 
 	return rtn;
+}
+
+
+function isDefaultGroupThatThrowsError(uuid) {
+	var iname = defaultGroupUuids[uuid];
+	if (iname === undefined) {
+		return false;
+	}
+	var fn = cm.defaultGroupsByName[iname.trimPrefix("GROUP-")];
+	if (fn === undefined || fn === null) {
+		return false;
+	}
+	try {
+		fn({json:"{}"});
+		return false;
+	} catch (ex) {
+		return true;
+	}
 }
 
 
@@ -508,7 +537,7 @@ if (!client.isXL()) {
 	groups.shift();
 
 	groups.forEach(row => {
-		if (row[2].match(/^GROUP-[A-Za-z]*By[A-Za-z]*$/)) {
+		if (row[2].match(/^GROUP-[A-Za-z]*By[A-Za-z]*$/) || cm.defaultGroupsByName[row[2].trimPrefix("GROUP-")] !== undefined) {
 			defaultGroupUuids[row[0]] = row[2];
 		}
 	});
@@ -552,8 +581,8 @@ while (true) {
 		}
 		n += 1;
 		bar();
+		var g = myGroupsByUuid[uuid];
 		try {
-			var g = myGroupsByUuid[uuid];
 			if (g) {
 				g.isCustom = true;
 			} else {
@@ -573,8 +602,7 @@ while (true) {
 			}
 
 			cachedGroups[uuid] = true;
-
-			if (needMembers(g) && g.membersCount > 0) {
+			if (needMembers(g) && g.membersCount > 0 && !isDefaultGroupThatThrowsError(uuid)) {
 				try {
 					client.paginate("getMembersByGroupUuid", uuid, {}, function(m) {
 						print(".");
@@ -606,8 +634,12 @@ while (true) {
 			if (client.lastException().isNotFound) {
 				missingScopeUuids[uuid] = true;
 			}
-			// printJson(ex);
 			print("!");
+			if (getenv("show_group_errors")) { // -- dev/debug aid
+				println("");
+				ex.g_uuid = uuid;
+				printJson(ex);
+			}
 		}
 	});
 
@@ -624,6 +656,17 @@ if (client.isXL()) {
 			lib.saveGroup(db, g, -1, [ ""]);
 		}
 	});
+
+	hash();
+	// Some entities have different naming conventions in classic and XL so we need them all :)
+	opts = { types: "ApplicationComponent,DatabaseServer" };
+	var n = 0;
+	client.paginate("getSearchResults", opts, e => {
+		print(".");
+		lib.saveEntity(db, e);
+		n += 1;
+	});
+	// printf("<%d>\n", n);
 	println("");
 }
 
@@ -761,12 +804,35 @@ if (sourceDb !== null) {
 			qblocks.push(q);
 		}
 		qblocks.forEach(qblock => {
+// TODO: Use pagination
 			client.getSearchResults( {q: "^(" + qblock.join("|") + ")$", types: mapGroupClass(className)}).forEach(e => {
 				print(".");
 				lib.saveEntity(db, e);
 			});
 		});
 	});
+
+
+	// Handle StorageController entities with different names (eg: Nutanix ones)
+	var classicScs = { };
+	sourceDb.query('select uuid, json from entities where className = "StorageController"').forEach(row => {
+		classicScs[row.uuid] = JSON.parse(row.json);
+	});
+	var xlScs = { };
+	db.query('select uuid, json from entities where className = "StorageController"').forEach(row => {
+		xlScs[row.uuid] = JSON.parse(row.json);
+	});
+	if (_.keys(classicScs).length !== _.keys(xlScs).length) {
+		print("|");
+		// mismatch - so get all of them from XL. A length mismatch is enough to check for because we've
+		// already tried to find the XL ones by their names in classic. If all matched then the length
+		// of the two lists would be the same.
+// TODO: Use pagination
+		client.getSearchResults( { types: "StorageController" } ).forEach(sc => {
+			print(".");
+			lib.saveEntity(db, sc);
+		});
+	}
 
 
 	if (args_["map-groups"]) {
@@ -802,6 +868,7 @@ if (sourceDb !== null) {
 
 
 // ====================================================================================
+
 
 title("Collecting schedules");
 
@@ -857,7 +924,6 @@ saveMapping("templates", lib.saveTemplateMapping, mapTemplateDn);
 
 println("");
 
-
 // ====================================================================================
 
 title("Creating utility views");
@@ -876,6 +942,47 @@ db.exec(`
 		from groups g
 		left join group_category gc on g.uuid = gc.uuid
 `);
+
+
+
+// ====================================================================================
+
+title("Cleanup");
+
+// Delete groups consisting entirely of GuestLoad Application entities
+
+var sql = `
+	select * from (
+		select g1.uuid,
+			g1.displayName,
+			g1.category,
+			(
+				select count(*)
+				from group_members g2
+				where g2.groupUuid = g1.uuid
+			) n1,
+			(
+				select count(*)
+				from group_members g3, entities e
+				where g3.groupUuid = g1.uuid
+				and e.uuid = g3.entityUuid
+				and e.displayName like "GuestLoad%"
+				and e.className = "Application"
+			) n2
+			from groups_plus g1
+	) where n2 > 0 and n2 = n1
+`;
+
+var uuids = { };
+db.query(sql).forEach(row => {
+	uuids[row.uuid] = true;
+});
+
+_.keys(uuids).forEach(uuid => {
+	db.exec(`delete from groups where uuid = ?`, [uuid]);
+});
+
+
 
 lib.saveMetaData(db, "endTime", "" + (new Date()));
 
