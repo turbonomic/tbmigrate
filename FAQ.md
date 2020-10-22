@@ -2,7 +2,7 @@
 
 ## Where can I find the latest version of TbMigrate?
 
-The published editions are always available in the [Turbonomic GitHub](https://github.com/turbonomic/tbmigrate/dist) with each release named by the version number.
+The published editions are always available in the [Turbonomic GitHub](https://github.com/turbonomic/tbmigrate) with each release named by the version number.
 
 We always recommend using the latest available version.
 
@@ -27,15 +27,21 @@ Actions can be enabled in your Turbonomic 8 instance when you're ready to switch
 This is expected with large environments which have more groups created.  This will take more time but be patient and the utility will let you know when it is completed.
 
 ## Can I migrate targets and come back to do the rest next week/month?
+
 We recommend doing it all on the same day. It may need two sessions if your targets take a long to finish discovery.
+
 ### Session 1: steps 1 to 3
+
 Wait 20-60 minutes for the environment discovery to complete
+
 ### Session 2: (later the same day) the rest
 
 ## Will the XL instance be an exact copy of the classic?
+
 No – a number of minor differences in naming conventions, entity types, available targets, and other small changes in the architecture may result in the Turbonomic 8 target looking slightly different than your Turbonomic 6 source instance.
 
 ## How long should I wait between steps 3 and 4 (and 6 and 7, if needed)?
+
 It all depends on the size of your environment, infrastructure performance, network latency – all that performance stuff that needs auto-managing :)
 
 You need to be sure that all target discovery has 100% finished AND that the groups component has completed its task.
@@ -46,9 +52,11 @@ NOTE: you will NOT see any colour other than green because we have disabled acti
 To be safe, wait for at least another 20 minutes before moving to step 4 (or 7). The longer you leave it, the better – but avoid the temptation of leaving more than 24 hours.
 
 ## Why are some dynamic groups from Turbonomic 6 changed to static groups in Turbonomic 8?
+
 Because Turbonomic 8 has different dynamic group filters than Turbonomic 7, some legacy groups may not supported in Turbonomic 8 and will need to be recreated using the new filters.
 
 ## Why are some elements reported as "not found" during group migration?
+
 There are several possible reasons for this.
 * The elements may have changed naming convention.
 * The target logic may mean that some elements are no longer populated into our topology.
