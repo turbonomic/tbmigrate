@@ -27,6 +27,12 @@ fi
 
 if [ -t 0 ] && [ -t 1 ]; then
 	bin/viewer "Review Migrated Groups" sh -c "cd js && ../bin/tbscript @null compare-groups.js '${classic_db}' '${xldb}'"
+	stat="$?"
+	if [ $stat = 9 ]; then
+		echo "Saving report to file '/tmp/groups.txt' ..."
+		cd js && ../bin/tbscript @null compare-groups.js "${classic_db}" "${xldb}" > /tmp/groups.txt
+		echo "Done."
+	fi
 else
 	cd js && ../bin/tbscript @null compare-groups.js "${classic_db}" "${xldb}"
 fi

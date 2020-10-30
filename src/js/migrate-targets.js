@@ -197,6 +197,8 @@ function targetDetailsMatch(name, type) {
 var numMismatchedTargets = 0;
 
 classicDb.query("select distinct uuid, category, type, displayName, name, isScoped, json from targets order by category, type").forEach(row => {
+	var xlType = lib.nameMap.target_type_map[row.type] || row.type;
+
 	// Filter out derived targets ..
 	if (derived[row.uuid]) { return; }
 
@@ -295,7 +297,9 @@ classicDb.query("select distinct uuid, category, type, displayName, name, isScop
 
 	var n = 0;
 	var foundCategory = null;
-	xlDb.query("select count(*) n, category from target_specs where type = ?", [row.type]).forEach(row => {
+	var xlType = lib.nameMap.target_type_map[row.type] || row.type;
+
+	xlDb.query("select count(*) n, category from target_specs where type = ?", [xlType]).forEach(row => {
 		n = parseInt(row.n);
 		foundCategory = row.category;
 	});
@@ -311,7 +315,7 @@ classicDb.query("select distinct uuid, category, type, displayName, name, isScop
 
 	if (n === 0 && !choice.skipped) {
 		nSkipped += 1;
-		choice.message = sprintf("[orange::b]ACTION SUGGESTED[-::-] - Mediation pod for Target type '%s::%s' is not configured in XL", row.category, row.type);
+		choice.message = sprintf("[orange::b]ACTION SUGGESTED[-::-] - Mediation pod for Target type '%s::%s' is not configured in XL", row.category, xlType);
 		choice.selected = false;
 		choice.skipped = true;
 		choice.failed = true;
@@ -338,7 +342,7 @@ classicDb.query("select distinct uuid, category, type, displayName, name, isScop
 		return;
 	}
 
-	var xlFields = getTargetFields(xlDb, foundCategory, row.type);
+	var xlFields = getTargetFields(xlDb, foundCategory, xlType);
 
 	var fieldsByName = { };
 	(classicTarget.inputFields || []).forEach(f => {
@@ -350,7 +354,7 @@ classicDb.query("select distinct uuid, category, type, displayName, name, isScop
 	// the classic target fields to what XL expects.
 	try {
 		if (lib.nameMap.target_cooker_script_lib[row.type]) {
-			lib.nameMap.target_cooker_script_lib[row.type].cook(fieldsByName, classicFields, xlFields, classicDb, xlDb, row.type);
+			lib.nameMap.target_cooker_script_lib[row.type].cook(fieldsByName, classicFields, xlFields, classicDb, xlDb, xlType);
 		}
 	} catch (ex) {
 		choice.message = ex.message;
@@ -532,7 +536,7 @@ targets.forEach(row => {
 
 	var n = 0;
 	var foundCategory = null;
-	var xlType = row.type;
+	var xlType = lib.nameMap.target_type_map[row.type] || row.type;
 	if (row.$BILLING) {
 		xlType = row.$BILLING.type;
 	}
@@ -560,9 +564,9 @@ targets.forEach(row => {
 	// the classic target fields to what XL expects.
 	try {
 		if (lib.nameMap.target_cooker_script_lib[row.type]) {
-			lib.nameMap.target_cooker_script_lib[row.type].cook(fieldsByName, classicFields, xlFields, classicDb, xlDb, row.type);
+			lib.nameMap.target_cooker_script_lib[row.type].cook(fieldsByName, classicFields, xlFields, classicDb, xlDb, xlType);
 		} else if (parseInt(row.isScoped) === 1) {
-			scopeCooker.cook(fieldsByName, classicFields, xlFields, classicDb, xlDb, row.type);
+			scopeCooker.cook(fieldsByName, classicFields, xlFields, classicDb, xlDb, xlType);
 		}
 	} catch (ex) {
 		error(ex.message);
@@ -716,6 +720,25 @@ targets.forEach(row => {
 			}
 		}
 
+		if (!exception && newTarget && newTarget.status.toLowerCase() === "validating") {
+			for (var n1 = 1; n1 <= 20; n1 += 1) {
+				printf("-- Target still validating -- waiting 15 more seconds (%d of 20)\n", n1);
+				sleep(15);
+				try {
+					var t = client.getTarget(newTarget.uuid);
+					if (t.status.toLowerCase() !== "validating") {
+						newTarget = t;
+						println("-- Done");
+						break;
+					}
+				} catch (ex) {
+					exception = ex;
+					break;
+				}
+			}
+		}
+
+
 		client.setTimeout("0");
 
 		if (exception && exception.message) {
@@ -740,6 +763,9 @@ targets.forEach(row => {
 		}
 
 		if (newTarget) {
+			// time when the target was discovered and stored
+			newTarget.timeStamp = (new Date()).getTime();
+
 			if (newTarget.status === "Validated") {
 				success("\n\u2713 Target Validated");
 				keepTrying = false;

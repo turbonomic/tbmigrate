@@ -1,6 +1,6 @@
-Mon 12 Oct 15:10:24 BST 2020
-commit 2541af7168d620b44d2c9caf861dc4c97afc6fa1 (HEAD -> master)
+Tue 20 Oct 14:32:33 BST 2020
+commit e75092c81ac3a7d9515c1337a3ad1410184e1cde (HEAD -> master, origin/master, origin/HEAD)
 Author: Chris Lowth <chris.lowth@turbonomic.com>
-Date:   Mon Oct 12 15:09:48 2020 +0100
+Date:   Tue Oct 20 14:31:35 2020 +0100
 
-    TBMigrage 3.7 - Updated version code in tbutil's README.md
+    Added logic to prevent groups that are members of needed super-groups from being deselected.

@@ -1,8 +1,8 @@
-### TbMigrate 3.7
+### TbMigrate 3.8
 
 # Download the latest version
 
-Use this link .. https://github.com/turbonomic/tbmigrate/raw/master/dist/tbmigrate-3.7.tgz
+Use this link .. https://github.com/turbonomic/tbmigrate/raw/master/dist/tbmigrate-3.8.tgz
 
 The MD5 checksum for the download file is `e5dafffb472965b1fa419add64ea28f3`
 

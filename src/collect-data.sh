@@ -133,7 +133,7 @@ phase2() {
 	(
 		cd js
 		script -q -c "
-			../bin/tbscript \"$xl_cred\" collect.js -skip-passwords -source-db \"$classic_db\" -map-groups \"$xl2_db\"-work &&
+			../bin/tbscript \"$xl_cred\" collect.js -skip-passwords -check-discovery -source-db \"$classic_db\" -map-groups \"$xl2_db\"-work &&
 			mv \"$xl2_db\"-work \"$xl2_db\"
 		" "$logsdir"/xl-collect-2.log
 	)

@@ -970,6 +970,12 @@ if (args_.i) {
 			message = "Mandatory group - scopes a policy, setting, target or user";
 		}
 
+		// Is the group a member of another?
+		var neededBy = [ ];
+		classicDb.query("select g.uuid from group_members m, groups_plus g where m.entityUuid = ? and g.uuid = m.groupUuid", [row.uuid]).forEach(row2 => {
+			neededBy.push(row2.uuid);
+		});
+
 		var failed = false;
 		var later = false;
 
@@ -989,7 +995,8 @@ if (args_.i) {
 			forced: forced,
 			later: later,
 			message: message,
-			failed: failed
+			failed: failed,
+			neededBy: neededBy
 		});
 	});
 
@@ -1024,7 +1031,7 @@ if (args_.i) {
 		lib.saveMetaData(xlDb, "migrate_groups_end_time", "" + (new Date()));
 		exit(0);
 	}
-	
+
 	var f = tempFile(JSON.stringify(selection));
 	try {
 		print("<SELECTOR_START>\r                     \r");
@@ -1041,7 +1048,7 @@ if (args_.i) {
 		}
 		throw ex;
 	}
-	
+debugger;
 	preSelected = { };
 	selection.choices.forEach(c => {
 		preSelected[c.key] = c.selected || c.forced;

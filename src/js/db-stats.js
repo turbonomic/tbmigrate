@@ -62,6 +62,22 @@ function inspect(dbName) {
 			stats[sprintf("%s_targets_2_confirmed", dbName)] = parseInt(row.n);
 		});
 
+		var ts = 0;
+		db.query(`select json from targets`).forEach(t => {
+			var obj = JSON.parse(t.json);
+			if (obj.timeStamp && obj.timeStamp > ts) {
+				ts = obj.timeStamp;
+			}
+		});
+
+		// age in mins of newest target or a very large value if none are known
+		var age = 99999999;
+		if (ts !== 0) {
+			age =  Math.floor((((new Date()).getTime()) - ts) / 1000 / 60);
+		}
+		stats[sprintf("%s_target_age", dbName)] = age;
+		stats[sprintf("%s_target_ts", dbName)] = sprintf("%d", ts);
+
 		db.close();
 
 		stats[sprintf("%s_db_ok", dbName)] = 1;

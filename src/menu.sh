@@ -23,53 +23,6 @@ productName() {
 	echo Turbonomic
 }
 
-confirm() {
-	product=`productName`
-
-	while :; do
-		clear
-		date
-		echo "+--------------------------------------------------------------------------+"
-		echo "|                          Supplychain Comparison                          |"
-		echo "+--------------------------------------------------------------------------+"
-		setterm -foreground cyan -bold on
-		/bin/echo -ne "... Wait ...\r"
-		(
-			cd js
-			../bin/tbscript @xl supplychain.js
-		)
-		setterm -default
-		echo "----------------------------------------------------------------------------"
-		echo
-		echo "Please open the $product UI or refer to the listing above and wait until"
-		echo "topology discovery is complete. Note that at this time, no actions will be"
-		echo "reported so the supply-chain will be all-green in the UI".
-		echo
-		echo "Depending on the number of targets and the size of your managed estate, "
-		echo "this could take 20 minutes or more."
-		echo
-		echo "You can now:"
-		echo "- Press ${yellow}<return>${reset} to refresh the listing above."
-		echo "- Type '${yellow}ready${reset}' then press ${yellow}<return>${reset} when you are happy that discovery is complete."
-		echo "- Type '${yellow}menu${reset}' then press ${yellow}<return>${reset} to return to the main menu."
-		echo "- Press ${yellow}Control-C${reset} to exit the migration tool."
-		echo -n "==> "
-		while :; do
-			read x
-			if [ "$x" = "" ]; then
-				break
-			elif [ "$x" = "ready" ]; then
-				sqlite3 $1 'replace into metadata values ("targets_1_confirmed", "true")'
-				return 0
-			elif [ "$x" = "menu" ]; then
-				return 1
-			else
-				echo -n "Unrecognised input: try again: "
-			fi
-		done
-	done
-}
-
 run() {
 	clear
 	echo "$green$USER@`hostname`$reset:${blue}`pwd | sed -e s@$HOME@~@`${reset}\$: ${bold}$*${reset}"
@@ -92,6 +45,8 @@ viewlog() {
 		more -d "$1"
 	fi
 }
+
+. ./.env
 
 while : ; do
 	clear
@@ -138,27 +93,35 @@ while : ; do
 			echo "$x before progressing to the next step. You can monitor progress using $x"
 			echo "$x the UI, and waiting until you see that the supply chain etc are     $x"
 			echo "$x fully populated.                                                    $x"
+			echo "$x                                                                     $x"
+			echo "$x We recommend that you wait AT LEAST ${min_discovery_wait_mins} minutes (though longer may   $x"
+			echo "$x be needed for large topologies)                                     $x"
 			echo "${yellow}***********************************************************************${reset}"
 			echo
 		fi
 
-	elif [ "$opt" = "confirm-1" ]; then
-		confirm data/xl1.db
-		waitAtEnd=false
-
 	elif [ "$opt" = "collect-2" ]; then
-		x="${yellow}*${reset}"
-		echo "${yellow}***********************************************************************"
-		echo "*                             PLEASE CONFIRM                          *"
-		echo "***********************************************************************${reset}"
-		echo -n "Has the `productName` XL instance finished discovering the topology (y/n)? "
-		read yn || continue
-		if [ "$yn" = "y" ]; then
-			run sh collect-data.sh 2
+		age=$(bin/tbscript @null js/db-stats.js xl1_target_age)
+		if [ "$age" -lt ${min_discovery_wait_mins} ]; then
+			echo
+			echo "${red}Error: it's been $age mins since the last target was migrated to XL.${reset}"
+			echo
+			echo "${yellow}( You should wait at least ${min_discovery_wait_mins} mins for discovery to complete. )${reset}"
+			echo
 		else
-			echo
-			echo "${red}Warning: Data collection cancelled${reset}"
-			echo
+			x="${yellow}*${reset}"
+			echo "${yellow}***********************************************************************"
+			echo "*                             PLEASE CONFIRM                          *"
+			echo "***********************************************************************${reset}"
+			echo -n "Has the `productName` XL instance finished discovering the topology (y/n)? "
+			read yn || continue
+			if [ "$yn" = "y" ]; then
+				run sh collect-data.sh 2
+			else
+				echo
+				echo "${red}Warning: Data collection cancelled${reset}"
+				echo
+			fi
 		fi
 
 	elif [ "$opt" = "groups-1" ]; then
@@ -179,27 +142,35 @@ while : ; do
 			echo "$x before progressing to the next step. You can monitor progress using $x"
 			echo "$x the UI, and waiting until you see that the supply chain is fully    $x"
 			echo "$x populated.                                                          $x"
+			echo "$x                                                                     $x"
+			echo "$x We recommend that you wait AT LEAST ${min_discovery_wait_mins} minutes (though longer may   $x"
+			echo "$x be needed for large topologies)                                     $x"
 			echo "${yellow}***********************************************************************${reset}"
 			echo
 		fi
 
-	elif [ "$opt" = "confirm-2" ]; then
-		confirm data/xl2.db
-		waitAtEnd=false
-
 	elif [ "$opt" = "collect-3" ]; then
-		x="${yellow}*${reset}"
-		echo "${yellow}***********************************************************************"
-		echo "*                                CONFIRM                              *"
-		echo "***********************************************************************${reset}"
-		echo -n "Is topology discovery complete (y/n)? "
-		read yn || continue
-		if [ "$yn" = "y" ]; then
-			run sh collect-data.sh 3
+		age=$(bin/tbscript @null js/db-stats.js xl2_target_age)
+		if [ "$age" -lt ${min_discovery_wait_mins} ]; then
+			echo
+			echo "${red}Error: it's been $age mins since the last target was migrated to XL.${reset}"
+			echo
+			echo "${yellow}( You should wait at least ${min_discovery_wait_mins} mins for discovery to complete. )${reset}"
+			echo
 		else
-			echo
-			echo "${red}Warning: Data collection cancelled${reset}"
-			echo
+			x="${yellow}*${reset}"
+			echo "${yellow}***********************************************************************"
+			echo "*                                CONFIRM                              *"
+			echo "***********************************************************************${reset}"
+			echo -n "Is topology discovery complete (y/n)? "
+			read yn || continue
+			if [ "$yn" = "y" ]; then
+				run sh collect-data.sh 3
+			else
+				echo
+				echo "${red}Warning: Data collection cancelled${reset}"
+				echo
+			fi
 		fi
 
 	elif [ "$opt" = "groups-2" ]; then
@@ -239,7 +210,14 @@ while : ; do
 
 	elif [ "$opt" = "zip-logs" ]; then
 		clear
-		tar cvfz /tmp/tbmigrate-logs.tgz data logs text-logs `[ -f .version ] && echo .version`
+		sh compare-groups.js > text-logs/groups.txt 2>&1
+		tar cvfz /tmp/tbmigrate-logs.tgz \
+			data \
+			logs \
+			text-logs \
+			`[ -d reports ] && echo reports` \
+			`[ -f .version ] && echo .version`
+
 		x="${yellow}*${reset}"
 		echo
 		echo "${yellow}*********************************************************************************"

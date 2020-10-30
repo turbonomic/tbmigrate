@@ -7,7 +7,7 @@ echo "|                                          PLEASE NOTE                    
 echo "+------------------------------------------------------------------------------------------------+"
 echo "|  In order to ensure that your infrastructure is not being managed by two Turbonomic instances  |"
 echo "|  in parallel, this tool will turn ALL actions off in the XL instance. Please refer to the      |"
-echo "|  documentation for advise on how and when to turn them back on (this should only be done       |"
+echo "|  documentation for advice on how and when to turn them back on (this should only be done       |"
 echo "|  after turning them OFF in the 'Classic' instance).                                            |"
 echo "+------------------------------------------------------------------------------------------------+"
 while true; do

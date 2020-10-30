@@ -21,11 +21,12 @@ usage = function() {
 	println("   -source-db {source_db_filename}");
 	println("   -map-groups");
 	println("   -target-criteria {critera_json_filename}");
+	println("   -check-discovery");
 	println("");
 	exit(2);
 };
 
-var args_ = F.extendedOptions("", "skip-passwords", "source-db:", "target-criteria:", "map-groups");
+var args_ = F.extendedOptions("", "skip-passwords", "source-db:", "target-criteria:", "map-groups", "check-discovery");
 if (args_.remaining.length !== 1) {
 	usage();
 }
@@ -33,6 +34,8 @@ if (args_.remaining.length !== 1) {
 var dbFileName = args_.remaining[0];
 var sourceDbFileName = args_["source-db"];
 var targetCriteria = args_["target-criteria"] ? loadJson(args_["target-criteria"]) : null;
+var checkDiscoveryState = args_["check-discovery"];
+var allGroupsCollected = false;
 
 
 // check that the right kind of user is running me.
@@ -255,6 +258,7 @@ lib.dropProbeTables(db);
 lib.createProbeTables(db);
 
 client.getProbes().forEach(p => {
+
 	print(".");
 	lib.saveProbe(db, p);
 
@@ -298,6 +302,21 @@ lib.createSupplyChainTable(db);
 	}
 });
 
+
+if (checkDiscoveryState) {
+	var n = 0;
+	db.query(`select sum(count) n from supplychain where envtype = "hybrid"`).forEach(row => {
+		if (row.n !== undefined) {
+			n = parseInt(row.n);
+		}
+	});
+
+	if (n === 0) {
+		error("The supply-chain is empty - discovery is not complete.");
+		println("(please wait a try again later)");
+		exit(2);
+	}
+}
 
 // ====================================================================================
 
@@ -347,6 +366,7 @@ lib.createTargetExtraTable(db);
 if ( !args_["skip-passwords"]) {
 	title("Collecting augmented target info");
 	var warnings = { };
+	var errors = { };
 
 	if (!client.isXL() && (client.isLocal() || client.hasSshCredentials())) {
 		var xmlFile = "/srv/tomcat/data/config/disc.config.topology";
@@ -376,7 +396,25 @@ if ( !args_["skip-passwords"]) {
 			lib.saveMetaData(db, "vmt_helper_data", key64.decodeBase64());
 			lib.saveMetaData(db, "vmt_helper_key_format", "raw");
 		} else {
-			warnings["Warning: Old-style VMT helper key detected. Migration of target passwords may fail"] = true;
+			var xlVersion = newClient("@xl").getVersionInfo();
+			var m = xlVersion.version.match(new RegExp('^\\d+\\.\\d+\\.\\d'));
+			if (m) {
+				var v = m[0].split(".");
+				v = parseInt(v[0]) * 10000 + parseInt(v[1]) * 100 + parseInt(v[2]);
+				if (v < 72209) {
+					println("\n");
+					error("Error: Target password migration from this classic instance requires XL 8.0.0 or later");
+					println("");
+					println("Please upgrade your XL instance to 8.0.0 or later and then retry.");
+					println("");
+					println("Or (if you prefer): Re-start from step 1 and answer 'n' to the question about target password migration.");
+					println("                    You will need to enter the passwords for each target by hand in this case.");
+					println("");
+					exit(2);
+				}
+			} else {
+				warnings["Warning: Old-style VMT helper key detected. Migration of target passwords likely to fail"] = true;
+			}
 			lib.saveMetaData(db, "vmt_helper_data", key64);
 			lib.saveMetaData(db, "vmt_helper_key_format", "base64");
 		}
@@ -395,6 +433,67 @@ if ( !args_["skip-passwords"]) {
 	if (warnings.length > 0) { println(""); }
 }
 
+
+// ====================================================================================
+
+if (checkDiscoveryState) {
+
+	var quotedNames = lib.nameMap.target_types_that_always_create_groups.map(t => { return '"' + t + '"'; });
+	var n = 0;
+	db.query("select count(*) n from targets where type in ("+quotedNames.join(",")+")").forEach(row => {
+		n = parseInt(row.n);
+	});
+
+	if (n > 0) {
+		title("Collecting groups");
+
+		lib.createGroupTables(db);
+
+		var opts = { types: "Group", environment_type: "HYBRID" };
+		client.paginate("getSearchResults", opts, g => {
+			print(".");
+			lib.saveXlGroup(db, g);
+		});
+		println("");
+		allGroupsCollected = true;
+
+		title("Checking target discovery state");
+
+		var groupsPerTarget = { };
+		db.query(`select sourceUuid, count(*) n from xlGroups group by sourceUuid`).forEach(row => {
+			groupsPerTarget[row.sourceUuid] = parseInt(row.n);
+		});
+		var warnings = 0;
+		db.query(`select uuid, json from targets where type in (`+quotedNames.join(",")+`)`).forEach(row => {
+			var t = JSON.parse(row.json);
+			if (t.status === "Validated") {
+				var n = groupsPerTarget[t.uuid];
+				if (n === 0 || n === undefined) {
+					var name = lib.getTargetName(t);
+					warning("Warning: target '"+name+"' discovery appears incomplete");
+					warnings += 1;
+				}
+			}
+		});
+		if (warnings > 0) {
+			println("");
+			println("Please wait for discovery to complete, then try this step again");
+			while (true) {
+				println("");
+				println("If you wish to disregard this warning, please indicate that you understand that this");
+				println("increases the chances that the migration will be incomplete by typing 'I understand'");
+				println("below (otherwise just press <return>).");
+				var ok = readLine("==> ");
+				if (ok.toLowerCase().trimSpace() === "i understand") {
+					break;
+				}
+				if (ok === "") {
+					exit(2);
+				}
+			}
+		}
+	}
+}
 
 // ====================================================================================
 
@@ -514,7 +613,9 @@ println("");
 // ====================================================================================
 // Pull the policy and setting scope group UUIDs out to add to our in-memory list
 
-lib.createGroupTables(db);
+if (!allGroupsCollected) {
+	lib.createGroupTables(db);
+}
 lib.createEntityTable(db);
 lib.createGroupMembersTable(db);
 
@@ -529,7 +630,7 @@ db.query(`
 });
 
 
-title("Collecting groups and members");
+title("Collecting group members");
 
 if (!client.isXL()) {
 	bar();
@@ -570,6 +671,18 @@ try {
 
 var missingScopeUuids = { };
 
+function getGroupByUuid(uuid) {
+	if (allGroupsCollected) {
+		var rtn = null;
+		db.query("select json from xlGroups where uuid = ?", [uuid]).forEach(row => {
+			rtn = JSON.parse(row.json);
+		});
+		return rtn;
+	} else {
+		return client.getGroupByUuid(uuid);
+	}
+}
+
 var order = 0;
 while (true) {
 	var n = 0;
@@ -586,7 +699,7 @@ while (true) {
 			if (g) {
 				g.isCustom = true;
 			} else {
-				g = client.getGroupByUuid(uuid);
+				g = getGroupByUuid(uuid);
 				g.isCustom = false;
 			}
 
@@ -804,8 +917,8 @@ if (sourceDb !== null) {
 			qblocks.push(q);
 		}
 		qblocks.forEach(qblock => {
-// TODO: Use pagination
-			client.getSearchResults( {q: "^(" + qblock.join("|") + ")$", types: mapGroupClass(className)}).forEach(e => {
+			var opts = {q: "^(" + qblock.join("|") + ")$", types: mapGroupClass(className)};
+			client.paginate("getSearchResults", opts, e => {
 				print(".");
 				lib.saveEntity(db, e);
 			});
@@ -823,12 +936,12 @@ if (sourceDb !== null) {
 		xlScs[row.uuid] = JSON.parse(row.json);
 	});
 	if (_.keys(classicScs).length !== _.keys(xlScs).length) {
-		print("|");
+		bar();
 		// mismatch - so get all of them from XL. A length mismatch is enough to check for because we've
 		// already tried to find the XL ones by their names in classic. If all matched then the length
 		// of the two lists would be the same.
-// TODO: Use pagination
-		client.getSearchResults( { types: "StorageController" } ).forEach(sc => {
+		var opts = { types: "StorageController" };
+		client.paginate("getSearchResults", opts, sc => {
 			print(".");
 			lib.saveEntity(db, sc);
 		});
@@ -981,7 +1094,6 @@ db.query(sql).forEach(row => {
 _.keys(uuids).forEach(uuid => {
 	db.exec(`delete from groups where uuid = ?`, [uuid]);
 });
-
 
 
 lib.saveMetaData(db, "endTime", "" + (new Date()));

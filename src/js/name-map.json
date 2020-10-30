@@ -104,10 +104,18 @@
 		}
 	},
 
+	/*********************************************************************************************
+		Map the target type used in Classic to it's XL equivalent (if different)
+	*********************************************************************************************/
+
+	"target_type_map": {
+		"EMC XtremIO": "EMC XtremIO SDK"
+	},
 
 	/********************************************************************************************
 		Some targets specs are different enough between Classic and XL that we need to apply some
 		target-specific logic to "cook" the Classic spec and convert it to something XL can eat.
+		Note: the map key is the CLASSIC type, not the XL one.
 	*********************************************************************************************/
 
 	"target_cooker_script_map": {
@@ -123,6 +131,20 @@
 		"Dynatrace": "simple-defaults-cooker.js",
 		"Nutanix": "simple-defaults-cooker.js"
 	},
+
+	/********************************************************************************************
+		If targets of any of the types listed below are included in the migration, we check that
+		discovery is complete by looking to see whether they have created any groups (they
+		always do).
+	*********************************************************************************************/
+
+	"target_types_that_always_create_groups": [
+		"# AWS",
+		"# Azure EA",
+		"# Azure Subscription",
+		"vCenter",
+		"# VMM"
+	],
 
 	/********************************************************************************************
 		Targets that have the billing features embedded in them in classic, but for which a

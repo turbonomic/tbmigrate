@@ -124,6 +124,10 @@ exports.createGroupTables = function(db) {
 	`);
 	db.exec("create unique index group_uuid on groups ( uuid )");
 
+	db.exec(`create table xlGroups (uuid, sourceUuid, json)`);
+	db.exec("create unique index all_group_uuid on xlGroups ( uuid )");
+
+
 //	db.exec(`create table v1groups (uuid, className, name, displayName)`);
 //	db.exec(`create unique index v1group_uuid on v1groups ( uuid )`);
 
@@ -148,6 +152,16 @@ exports.saveGroup = function(db, g, order, why) {
 		g.membersCount,
 		order,
 		why.join(", "),
+		JSON.stringify(g)
+	]);
+};
+
+// We have to get ALL groups from XL so that we can validate whether discovery is complete or not. We save them
+// in a separate table to avoid tangling the logic with the main selected groups table.
+exports.saveXlGroup = function(db, g) {
+	var rtn = db.exec("replace into xlGroups values (?, ?, ?)",[
+		g.uuid,
+		g.source ? g.source.uuid : (g.discoveredBy ? g.discoveredBy.uuid : null),
 		JSON.stringify(g)
 	]);
 };
