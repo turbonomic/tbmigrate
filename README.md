@@ -4,7 +4,7 @@
 
 Use this link .. https://github.com/turbonomic/tbmigrate/raw/master/dist/tbmigrate-3.8.tgz
 
-The MD5 checksum for the download file is `e5dafffb472965b1fa419add64ea28f3`
+The MD5 checksum for the download file is `a4ad47fed9504fd515c87e8cf2a20399`
 
 # Documentation
 
