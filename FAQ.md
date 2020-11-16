@@ -10,6 +10,8 @@ We always recommend using the latest available version.
 
 You can find the documentation in the Turbonomic Installation Guide under Appendix C which is [available here.](https://docs.turbonomic.com)
 
+Notes on reviewing the migration results [can be read here](../master/REVIEW.md).
+
 ## There is an error, what should I do?
 
 Sometimes, things don't go 100% right but it may be by design due to some changes in architecture between Turbonomic 6 and Turbonomic 8.  
@@ -69,5 +71,6 @@ There are several possible reasons for this.
 It depends on when this happens. But generally, it is not great news. You may be able to recover by restarting the step at which the failure occurred – but you need to make sure that the old copy of the tool is not still running first.
 Avoid the problem using the old DevOps favourite utility: ["screen"](https://blog.turbonomic.com/why-the-screen-utility-will-change-your-remote-ssh-approach).
 
+## How can I check the results of the migration?
 
-
+Detailed notes on reviewing the migration [can be read here](../master/REVIEW.md).
