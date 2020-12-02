@@ -1,11 +1,5 @@
 ### TbMigrate 3.8
 
-# Download the latest version
-
-Use this link .. https://github.com/turbonomic/tbmigrate/raw/master/dist/tbmigrate-3.8.tgz
-
-The MD5 checksum for the download file is `a4ad47fed9504fd515c87e8cf2a20399`
-
 # Documentation
 
 The documentation for this tool can be found in Appendix C of the Turbonomic 7.22.6 (or later) installation guide. See: http://docs.turbonomic.com
@@ -13,6 +7,10 @@ The documentation for this tool can be found in Appendix C of the Turbonomic 7.2
 The FAQ (Frequenty Asked Questions) document [can be read here](../master/FAQ.md).
 
 Notes on reviewing the migration results [can be read here](../master/REVIEW.md).
+
+# Downloading
+
+Please [follow this link](../master/DOWNLOAD.md) for information about downloading the latest version.
 
 # Note
 
