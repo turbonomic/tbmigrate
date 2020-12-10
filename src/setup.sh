@@ -1,7 +1,34 @@
 #! /bin/bash
 
+. ./.env
+. bin/functions.sh
+
+roll_logs setup
+
+logfile="$logsdir/setup.log"
+
+log() {
+	mkdir -p "$logsdir"
+	echo "`date`: $*" >> "$logfile"
+}
+
+logError() {
+	mkdir -p "$logsdir"
+	$* 2> /tmp/$$.err
+	stat=$?
+	cat /tmp/$$.err
+	cat /tmp/$$.err >> "$logfile"
+	rm -f /tmp/$$.err
+	return $stat
+}
+
+trap 'log "End"; rm -f /tmp/$$' 0
+
+log "Begin"
+
 clear
 echo
+log "ask - ok to continue?"
 echo "+------------------------------------------------------------------------------------------------+"
 echo "|                                          PLEASE NOTE                                           |"
 echo "+------------------------------------------------------------------------------------------------+"
@@ -13,21 +40,18 @@ echo "+-------------------------------------------------------------------------
 while true; do
 	echo -n "Do you wish to continue (y/n)? "
 	read yn || exit 2
+	log "answer: '$yn'"
 	if [ "$yn" = y ]; then break; fi
 	if [ "$yn" = n ]; then exit 0; fi
 done
 
 clear
 
-
-trap 'rm -f /tmp/$$' 0
-
 export TURBO_FORCE_COLOUR=yes
 
-. ./.env
-
-rm -rf "$datadir" "$logsdir" "$reportsdir"
-mkdir -p  "$datadir" "$logsdir" "$reportsdir" || exit 2
+logError rm -rf "$datadir" "$reportsdir" "$textlogsdir"
+logError mkdir -p  "$datadir" "$logsdir" "$reportsdir" "$textlogsdir" || exit 2
+find "$logsdir" -maxdepth 1 -type f \! -name 'setup.log*' -exec rm {} \;
 
 cd js && ln -sf ../bin/select . && cd ..
 
@@ -41,13 +65,23 @@ if $local_classic; then
 else
 	unset TURBO_CRED_HOST
 fi
+
+log "save credentials for classic"
 TURBO_ASSERT_MODEL=classic \
 TURBO_ASSERT_MIN_VERSION=$min_classic_version \
 TURBO_ASSERT_USER_ROLE=administrator \
-	./bin/tbutil "$classic_cred" save credentials || exit 2
+	./bin/tbutil "$classic_cred" save credentials
+if [ $? -ne 0 ]; then
+	log Failed
+	exit 2
+fi
+log Okay
 
 # Validate the license
-if ! ./bin/tbutil "$classic_cred" license -days-left > /tmp/$$ 2>&1; then
+log "license check for classic"
+if ! logError ./bin/tbutil "$classic_cred" license -days-left > /tmp/$$ 2>&1; then
+	log Failed
+	cat /tmp/$$ >> "$logfile"
 	echo
 	setterm -foreground red -bold on
 	echo Error validating the classic instance license.
@@ -55,9 +89,10 @@ if ! ./bin/tbutil "$classic_cred" license -days-left > /tmp/$$ 2>&1; then
 	echo
 	exit 2
 fi
-
+log Okay
 
 if [ "$local_classic" != "true" ]; then
+	log "ask - ssh credentails for classic wanted?"
 	echo ""
 	echo "+----------------------------------------------------------------------------------------+"
 	echo "| SSH credentials for CLASSIC instance                                                   |"
@@ -70,6 +105,7 @@ if [ "$local_classic" != "true" ]; then
 	echo -n "So: do you want to configure SSH crentials (y/n)? "
 	while :; do
 		read yn || exit 0
+		log "answer: '$yn'"
 		if [ "$yn" = "y" ] || [ "$yn" = "n" ]; then
 			break
 		fi
@@ -78,9 +114,14 @@ if [ "$local_classic" != "true" ]; then
 	done
 
 	if  [ "$yn" = 'y' ]; then
-		./bin/tbutil "$classic_cred" save ssh credentials || exit 2
+		log "save ssh credentials for classic"
+		./bin/tbutil "$classic_cred" save ssh credentials
+		if [ $? -ne 0 ]; then
+			log Failed
+			exit 2
+		fi
+		log Okay
 	fi
-
 fi
 
 
@@ -94,23 +135,53 @@ if $local_xl; then
 else
 	unset TURBO_CRED_HOST
 fi
+
+log "save credentials for XL"
 TURBO_ASSERT_MODEL=xl \
 TURBO_ASSERT_MIN_VERSION=$min_xl_version \
 TURBO_ASSERT_USER_ROLE="administrator|site_admin" \
-	./bin/tbutil "$xl_cred" save credentials || exit 2
+	./bin/tbutil "$xl_cred" save credentials
+if [ $? -ne 0 ]; then
+	log Failed
+	exit 2
+fi
+log Okay
 
 # Validate the license
-if ! ./bin/tbutil "$xl_cred" license -days-left > /tmp/$$ 2>&1; then
-	echo
+while true; do
+	log "license check for XL"
+	echo "Checking XL license ..."
+	if ./bin/tbutil "$xl_cred" license -days-left > /tmp/$$ 2>&1; then
+		break
+	fi
+	log Failed
+	cat /tmp/$$ >> "$logfile"
+	echo; echo; echo
 	setterm -foreground red -bold on
 	echo Error validating the XL instance license.
 	setterm -default
 	echo
+	echo Please install a valid license in the XL instance using the UI.
+	echo -n "Press <return> when ready (or 'q' then <return> to abort): "
+	read cr
+	if [ "$cr" = "q" ]; then
+		exit 2
+	fi
+
+	echo
+done
+log Okay
+
+echo
+echo
+
+log "get search critera from XL"
+logError ./bin/tbutil "$xl_cred" get /search/criteria > "$datadir"/xl-search-criteria.json
+if [ $? -ne 0 ]; then
+	log Failed
 	exit 2
 fi
-
-./bin/tbutil "$xl_cred" get /search/criteria > "$datadir"/xl-search-criteria.json || exit 2
-
+log Okay
 
 echo "+--------------------------------------------------------------------------------------+"
 echo "|                               Target Password Migration                              |"

@@ -192,7 +192,10 @@ function processDefaultPolicies() {
 			sm.settings.forEach(s => {
 				if (args_["copy-all"] || isChanged(s)) {
 					if (!setDefault(type, sm.uuid, s.uuid, s.value)) {
-						warning(sprintf("    Warning: No setting for '%v defaults::%v::%v' (%v)", type, sm.displayName, s.displayName, s.value));
+						var name = sprintf("%v defaults::%v::%v", type, sm.displayName, s.displayName);
+						if (name !== "Storage defaults::Storage Settings::Datastore Browsing") {
+							warning(sprintf("    Warning: No setting for '%v' (%v)", name, s.value));
+						}
 					}
 				}
 			});
@@ -221,10 +224,10 @@ function processDefaultPolicies() {
 					if (s.valueType === "NUMERIC") {
 						var value = parseFloat(s.value);
 						if (value > s.max) {
-							warning(sprintf("        Warning: classic's value is larger than XL's allowed maximum - reducing to %v", s.max));
+							warning(sprintf("        Warning: Classic's value is larger than XL's allowed maximum - reducing to %v", s.max));
 							s.value = "" + s.max;
 						} else if (value < s.min) {
-							warning(sprintf("        Warning: classic's value is less than XL's allowed minimum - raising to %v", s.min));
+							warning(sprintf("        Warning: Classic's value is less than XL's allowed minimum - raising to %v", s.min));
 							s.value = "" + s.min;
 						}
 					}
@@ -311,17 +314,17 @@ function mapScope(scope) {
 	});
 
 	if (numMappings === 0) {
-		if (scope.displayName === undefined) {
-			error(sprintf("      Error: Policy scoped to a non-existent group (uuid: %s)", scope.uuid));
+		if (scope.displayName === undefined || scope.displayName === "VMT_SETTINGS_POLICY_FAKE_GROUP") {
+			warning(sprintf("      Warning: Policy scoped to a non-existent group (uuid: %s)", scope.uuid));
 		} else {
-			error(sprintf("      Error: Cant find scope group '%s' in XL", mapGroupName(scope.displayName)));
+			warning(sprintf("      Warning: Cant find scope group '%s' in XL", mapGroupName(scope.displayName)));
 		}
 		scope.$NOT_FOUND_IN_XL = true;
 		rtn = null;
 	}
 
 	if (numMappings > 1) {
-		error(sprintf("      Error: Multiple groups called '%s' found", mapGroupName(scope.displayName)));
+		warning(sprintf("      Warning: Multiple groups called '%s' found", mapGroupName(scope.displayName)));
 		scope.$NOT_FOUND_IN_XL = true;
 		rtn = null;
 	}
@@ -333,7 +336,7 @@ function mapScope(scope) {
 		if (rtn2 === null) {
 			rtn2 = client.findInstance("DataCenter", dcName);
 			if (rtn2 === null) {
-				error(sprintf("      Error: Cant find DC '%s' in XL", mapGroupName(dcName)));
+				warning(sprintf("      Warning: Cant find DC '%s' in XL", mapGroupName(dcName)));
 				scope.$NOT_FOUND_IN_XL = true;
 				rtn = null;
 			} else {
@@ -482,6 +485,7 @@ function processCustomPolicies() {
 			}
 		});
 		if (failed) {
+			error("      Policy not migrated");
 			return;
 		}
 

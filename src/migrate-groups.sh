@@ -46,8 +46,10 @@ phase1() {
 	roll_logs migrate-groups-1
 
 	cd js || exit 2
-	script -q -c "../bin/tbscript \"$xl_cred\" migrate-groups.js $iopt -skip-scoped-targets \"$classic_db\" \"$xl2_db\"" "$logsdir"/migrate-groups-1.log
+	script -q -ec "../bin/tbscript \"$xl_cred\" migrate-groups.js $iopt -skip-scoped-targets \"$classic_db\" \"$xl2_db\"" "$logsdir"/migrate-groups-1.log
+	stat=$?
 	../bin/cleanlog "$logsdir/migrate-groups-1.log"
+	return $stat
 
 }
 
@@ -66,8 +68,10 @@ phase2() {
 		cp "$xl2_db" "$xl3_db"
 	fi
 
-	script -q -c "../bin/tbscript \"$xl_cred\" migrate-groups.js $iopt \"$classic_db\" \"$xl3_db\"" "$logsdir"/migrate-groups-2.log
+	script -q -ec "../bin/tbscript \"$xl_cred\" migrate-groups.js $iopt \"$classic_db\" \"$xl3_db\"" "$logsdir"/migrate-groups-2.log
+	stat=$?
 	../bin/cleanlog "$logsdir/migrate-groups-2.log"
+	return $stat
 }
 
 export TURBO_FORCE_COLOUR=yes
@@ -82,6 +86,8 @@ fi
 
 if [ "$phase" = 1 ]; then
 	phase1
+	exit $?
 elif [ "$phase" = 2 ]; then
 	phase2
+	exit $?
 fi

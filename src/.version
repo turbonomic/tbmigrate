@@ -1,6 +1,8 @@
-Tue 20 Oct 14:32:33 BST 2020
-commit e75092c81ac3a7d9515c1337a3ad1410184e1cde (HEAD -> master, origin/master, origin/HEAD)
+Version 3.11
+Mon  7 Dec 16:57:38 GMT 2020
+BINS_DIR = /home/turbo/tbmigrate/3.9/tbmigrate/bin/.exe
+commit 58f46c761a104bc82203988d822286ce2d373b2e (HEAD -> tbmigrate-3.11, origin/tbmigrate-3.11)
 Author: Chris Lowth <chris.lowth@turbonomic.com>
-Date:   Tue Oct 20 14:31:35 2020 +0100
+Date:   Mon Dec 7 16:57:19 2020 +0000
 
-    Added logic to prevent groups that are members of needed super-groups from being deselected.
+    Fix 2 typos

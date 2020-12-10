@@ -65,20 +65,6 @@
 	],
 
 
-	/********************************************************************************************
-		JS RegExp list for user groups to exclude (unless they are used as scopes in included
-		policies or targets
-	*********************************************************************************************/
-
-	"excluded_user_group_name_res": [
-		"^AvailabilitySet::",
-		"^AzureScaleSet::",
-		"^GROUP-DESKTOPPOOL-",
-		"^Sellers-Group-GROUP-DRS-",
-		"^Buyers-Group-GROUP-DRS-",
-		"^Region .*? Expired Promo Templates$"
-	],
-
 
 	"template_name_map": {
 		"VirtualMachine": {
@@ -132,19 +118,94 @@
 		"Nutanix": "simple-defaults-cooker.js"
 	},
 
+	/*
+	 * From "com/vmturbo/topology/processor/migration/V_01_01_05__Target_Common_Proxy_Settings" ..
+	 *
+	 * Rename configuration.
+     * --------------------
+     * TYPE                     CLASS (AccountDefinition)                                 FIELDS TO UPDATE          FIELDS TO KEEP
+     * ----                     -------------------------                                 ----------------          --------------
+     * AWS                      com.vmturbo.mediation.aws.client.AwsAccountBase           proxy,port,proxyUser
+     * AWS Billing              com.vmturbo.mediation.aws.billing.AwsBillingAccount       proxy,port,proxyUser
+     * AWS Cost                 com.vmturbo.mediation.aws.cost.AwsCostAccount             proxy,port,proxyUser
+     * Azure Subscription       com.vmturbo.mediation.azure.AzureAccount                  proxy,port,proxyUser
+     * Azure Cost               com.vmturbo.mediation.azure.cost.AzureCostAccount         proxy,port,proxyUser
+     * Azure EA                 com.vmturbo.mediation.azure.ea.AzureEAAccount             proxyUser                  proxyHost,proxyPort
+     * Azure Service Principal  com.vmturbo.mediation.azure.sp.AzureSPAccount             proxyUser                  proxyHost,proxyPort
+     * GCP                      com.vmturbo.mediation.gcp.client.GcpAccount               proxy,port,proxyUser
+     * GCP Cost                 com.vmturbo.mediation.gcp.cost.GcpCostAccount             proxy,port,proxyUser
+     * Pivotal Ops Manager      com.vmturbo.mediation.pivotal.opsman.PivotalOpsmanAccount proxy                      proxyPort
+     * ServiceNow               com.vmturbo.mediation.servicenow.ServiceNowAccount        proxyUser                  proxyHost,proxyPort
+     * AppInsights              com.vmturbo.mediation.appinsights.AppInsightsAccount      proxy,port,proxyUser
+	 *
+	 * From "com/vmturbo/topology/processor/migration/V_01_01_06__Target_Common_Proxy_Settings_Additional" ..
+     * Rename configuration.
+     * --------------------
+     * TYPE                     CLASS (AccountDefinition)                                 FIELDS TO UPDATE          FIELDS TO KEEP
+     * ----                     -------------------------                                 ----------------          --------------
+     * AWS Lambda               com.vmturbo.mediation.aws.client.AwsAccountBase           proxy,port,proxyUser
+     * Azure Wasted Volumes     com.vmturbo.mediation.azure.AzureAccount                  proxy,port,proxyUser
+     * Intersight               com.vmturbo.mediation.intersight.base.IntersightAccount   proxy                      proxyPort
+     * Intersight UCS           com.vmturbo.mediation.intersight.base.IntersightAccount   proxy                      proxyPort
+     * Intersight Hyperflex     com.vmturbo.mediation.intersight.base.IntersightAccount   proxy                      proxyPort
+     */
+
+	// The commented-out ones will never be migrated from classic
+	"rename_target_fields": {
+		"AWS": 					{ "proxy": "proxyHost", "port": "proxyPort", "proxyUser": "proxyUsername"},
+		"AWS Billing": 			{ "proxy": "proxyHost", "port": "proxyPort", "proxyUser": "proxyUsername"},
+	//	"AWS Cost":				{ "proxy": "proxyHost", "port": "proxyPort", "proxyUser": "proxyUsername"},
+	//	"AWS Lambda":			{ "proxy": "proxyHost", "port": "proxyPort", "proxyUser": "proxyUsername"},
+	//	"Azure Subscription":	{ "proxy": "proxyHost", "port": "proxyPort", "proxyUser": "proxyUsername"},
+	//	"Azure Cost": 			{ "proxy": "proxyHost", "port": "proxyPort", "proxyUser": "proxyUsername"},
+	//	"Azure EA": 			{ "proxyUser": "proxyUsername"},
+		"Azure Service Principal": { "proxyUser": "proxyUsername" },
+		"Azure Wasted Volumes":	{ "proxy": "proxyHost", "port": "proxyPort", "proxyUser": "proxyUsername"},
+		"GCP":		 			{ "proxy": "proxyHost", "port": "proxyPort", "proxyUser": "proxyUsername"},
+	//	"GCP Cost":	 			{ "proxy": "proxyHost", "port": "proxyPort", "proxyUser": "proxyUsername"},
+		"Pivotal Ops Manager":	{ "proxy": "proxyHost" },
+		"ServiceNow":			{ "proxyUser": "proxyUsername" },
+		"AppInsights":			{ "proxy": "proxyHost", "port": "proxyPort", "proxyUser": "proxyUsername"}
+	//	"Intersight":           { "proxy": "proxyHost" },
+	//	"Intersight UCS":       { "proxy": "proxyHost" },
+	//	"Intersight Hyperflex": { "proxy": "proxyHost" },
+	},
+
+
 	/********************************************************************************************
-		If targets of any of the types listed below are included in the migration, we check that
-		discovery is complete by looking to see whether they have created any groups (they
-		always do).
+		Fields to use default values for in ANY target that has them in XL but not in classic.
 	*********************************************************************************************/
 
-	"target_types_that_always_create_groups": [
-		"# AWS",
-		"# Azure EA",
-		"# Azure Subscription",
-		"vCenter",
-		"# VMM"
-	],
+	"add_target_field_default": [ "secureProxy" ],
+
+	/********************************************************************************************
+		If targets of any of the types listed below are included in the migration, we check that
+		discovery is complete by looking to see whether they have created the listed groups (they
+		always do). Note : a "#" in the key is effectively commenting out the entry. The string
+		against each type key must be a list of RE matches that the XL /search API call accepts
+		in it's "q=" argument.
+	*********************************************************************************************/
+
+	"target_types_that_always_create_groups": {
+		"AWS": [
+			"^Virtual machines attached to",
+			"^instance..dStorageCluster\\$",
+			"^elasticStorageCluster$"
+		],
+		"Azure EA": [
+			"\\([0-9][0-9]*\\)$"
+		],
+		"# Azure Subscription": [],
+		"vCenter": [
+			"^Discovered virtual machine$"
+		],
+		"VMM": [
+			"^VMM-DC-",
+			"^Hyper-V Datacenter",
+			"^PMs with Mem threshold",
+			"^ReplicaSet$"
+		]
+	},
 
 	/********************************************************************************************
 		Targets that have the billing features embedded in them in classic, but for which a

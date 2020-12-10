@@ -98,7 +98,7 @@ function fileExists(file) {
 
 
 stats.credsReady = true;
-stats.credsDone = fileExists("data/tbutil-credentials.json");
+stats.credsDone = fileExists("data/tbutil-credentials.json") && fileExists("data/xl-search-criteria.json");
 
 stats.collect1Ready = stats.credsDone;
 stats.collect1Done = stats.xl1_db_ok === 1 && fileExists("logs/xl-collect-1.log") && !fileExists("data/.redo-collect-1");

@@ -195,7 +195,7 @@ classicDb.query("select name, json from users").forEach(row => {
 				xlUuid = row.xlUuid;
 			});
 			if (xlUuid === null) {
-				warning(sprintf("    Warning: scope group '%s' not found (required for user '%s')", s.displayName, u.username));
+				warning(sprintf("    Warning: scope group '%s' not found", s.displayName));
 				scopeOk = false;
 			} else {
 				newScope.push( { uuid: xlUuid });
@@ -284,7 +284,7 @@ classicDb.query("select json from user_groups").forEach(row => {
 				xlUuid = row.xlUuid;
 			});
 			if (xlUuid === null) {
-				warning(sprintf("    Warning: scope group '%s' not found (required for group '%s')", s.displayName, g.displayName));
+				warning(sprintf("    Warning: scope group '%s' not found", s.displayName));
 				scopeOk = false;
 			} else {
 				newScope.push( { uuid: xlUuid });

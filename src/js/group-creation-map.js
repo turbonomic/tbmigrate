@@ -6,7 +6,7 @@ var _this = {
 		        {
 		            "caseSensitive": false,
 		            "expType": "RXEQ",
-		            "expVal": match.quoteRegexpMeta(true),
+		            "expVal": match.quoteRegexpMeta(true).replace(/\//g, "[/\\\\]"),
 		            "filterType": filterType,
 		            "singleLine": false
 		        }
@@ -26,12 +26,14 @@ var _this = {
 	},
 
 
+	// A null creator (or one that returns null) results in a static group being created.
+
 	creatorMap: {
 		"AppByPM": function(g) { throw "Dynamic 'Application' groups are not migratable"; },
 
 		"ApplicationByPhysicalMachine": function(g) { throw "Dynamic 'Application' groups are not migratable"; },
 
-		"ApplicationByType": function(g) { throw "Dynamic 'Application' groups are not migratable"; },
+		"ApplicationByType": null, // function(g) { throw "Dynamic 'Application' groups are not migratable"; },
 
 		"ApplicationServerByType": function(g) { throw "Dynamic 'Application' groups are not migratable"; },
 
@@ -82,18 +84,32 @@ var _this = {
 		"PhysicalMachineByChassis": null,
 
 		"PhysicalMachineByChassisOrDataCenter": function(g) {
-			var dc = g.displayName.trimPrefix("PMs_");
-			return _this.pmDynamicGroup(dc, "pmsByDC", g.displayName);
+			var obj = g.json ? JSON.parse(g.json) : _.deepClone(g);
+			if ((obj.source || {}).type === "Azure") { return null; }
+			if ((obj.source || {}).type === "AWS") { return null; }
+			var dc = _this.lib.mapGroupName(g.displayName).trimPrefix("PMs_");
+			return _this.pmDynamicGroup(dc, "pmsByDC", _this.lib.mapGroupName(g.displayName));
+		},
+
+		"PhysicalMachine": function(g) {
+			var obj = g.json ? JSON.parse(g.json) : _.deepClone(g);
+			if ((obj.source || {}).type === "Hyper-V") { return null; }
+			if ((obj.source || {}).type === "Azure") { return null; }
+			if ((obj.source || {}).type === "AWS") { return null; }
+			var dc = _this.lib.mapGroupName(g.displayName).trimPrefix("PMs_");
+			return _this.pmDynamicGroup(dc, "pmsByDC", _this.lib.mapGroupName(g.displayName));
 		},
 
 		"PhysicalMachineByCluster": function(g) {
-			var clusterName = g.displayName.trimPrefix("PMs_").replace(/\\/g, "/");
+			var obj = g.json ? JSON.parse(g.json) : _.deepClone(g);
+			if ((obj.source || {}).type === "Hyper-V") { return null; }
+			var clusterName = _this.lib.mapGroupName(g.displayName).trimPrefix("PMs_").replace(/\\/g, "/");
 			var groupName = "PMs_" + clusterName;
 			return _this.pmDynamicGroup(clusterName, "pmsByClusterName", groupName);
 		},
 
 		"PhysicalMachineByDataCenter": function(g) {
-			var dc = g.displayName.trimPrefix("PMs");
+			var dc = _this.lib.mapGroupName(g.displayName).trimPrefix("PMs");
 			var groupName = "PMs_" + dc;
 			return _this.pmDynamicGroup(dc, "pmsByDC", groupName);
 		},
@@ -123,7 +139,7 @@ var _this = {
 		"StorageByServiceLevelCluster": null,
 
 		"StorageByStorageCluster": function(g) {
-			var f = g.displayName.trimPrefix("Storage_").split("\\");
+			var f = _this.lib.mapGroupName(g.displayName).trimPrefix("Storage_").split("/");
 			if (f.length === 1) {
 				// No DC included in the group name
 				return {
@@ -197,25 +213,30 @@ var _this = {
 		"VirtualMachineByBusinessUser": null,
 
 		"VirtualMachineByCluster": function(g) {
-			var clusterName = g.displayName.trimPrefix("VMs_").replace(/\\/g, "/");
+			var clusterName = _this.lib.mapGroupName(g.displayName).trimPrefix("VMs_").replace(/\\/g, "/");
 			var groupName = "VMs_" + clusterName;
 			return _this.vmDynamicGroup(clusterName, "vmsByClusterName", groupName);
 		},
 
 		"VirtualMachineByNetwork": function(g) {
-			var netName = g.displayName.trimPrefix("VMs_");
-			return _this.vmDynamicGroup(netName, "vmsByNetwork", g.displayName);
+			var netName = _this.lib.mapGroupName(g.displayName).trimPrefix("VMs_");
+			return _this.vmDynamicGroup(netName, "vmsByNetwork", _this.lib.mapGroupName(g.displayName));
 		},
 
 		"VirtualMachineByPhysicalMachine": function(g) {
-			var hostName = g.displayName.trimPrefix("VMs_");
-			return _this.vmDynamicGroup(hostName, "vmsByPMName", g.displayName);
+			var hostName = _this.lib.mapGroupName(g.displayName).trimPrefix("VMs_");
+			return _this.vmDynamicGroup(hostName, "vmsByPMName", _this.lib.mapGroupName(g.displayName));
+		},
+
+		"VirtualMachine": function(g) {
+			var hostName = _this.lib.mapGroupName(g.displayName).trimPrefix("VMs_");
+			return _this.vmDynamicGroup(hostName, "vmsByPMName", _this.lib.mapGroupName(g.displayName));
 		},
 
 		"VirtualMachineByServiceLevelCluster": null,
 
 		"VirtualMachineByStorage": function(g) {
-			var f = g.displayName.trimPrefix("VMs_").split("\\");
+			var f = _this.lib.mapGroupName(g.displayName).trimPrefix("VMs_").split("/");
 			var storage = f.pop();
 			var dc = f.join("/");
 			return {
@@ -249,7 +270,7 @@ var _this = {
 		"VirtualMachineByVirtualDataCenter": function(g) {
 	// TODO - What if the name has no back slashes? ( see 10.10.169.116 for example )
 	// TODO - What if the DC is actually a DesktopPool
-			var f = g.displayName.trimPrefix("VMs_").split("\\");
+			var f = _this.lib.mapGroupName(g.displayName).trimPrefix("VMs_").split("/");
 			var dc = f.pop();
 			var cluster = f.join("/");
 			return {
@@ -318,7 +339,7 @@ var _this = {
 			            "singleLine": false
 			        }
 			    ],
-			    "displayName": g.displayName,
+			    "displayName": _this.lib.mapGroupName(g.displayName),
 			    "entityTypes": [ type ],
 			    "groupType": type,
 			    "isStatic": false,
@@ -341,7 +362,7 @@ var _this = {
 	            "filterType": filter,
 	            "singleLine": false
 	        }],
-		    "displayName": g.displayName,
+		    "displayName": _this.lib.mapGroupName(g.displayName),
 		    "entityTypes": [ "VirtualMachine" ],
 		    "groupType": "VirtualMachine",
 		    "isStatic": false,
@@ -354,7 +375,7 @@ var _this = {
 		return {
 		    "className": "Group",
 		    "criteriaList": [],
-		    "displayName": g.displayName,
+		    "displayName": _this.lib.mapGroupName(g.displayName),
 		    "entityTypes": [ type ],
 		    "groupType": type,
 		    "isStatic": false,
@@ -363,8 +384,26 @@ var _this = {
 		};
 	},
 
+	staticGroupOfGroups: function(g, uuids) {
+		return {
+		    "className": "Group",
+		    "groupType": "Group",
+		    "isStatic": true,
+		    "memberUuidList": uuids
+		};
+	},
+
+
+	// migrate-groups will patch these to have real logic before use.
+
+	internalHostsGroupUuid: function() { return "1234000000"; },
+	internalZonesGroupUuid: function() { return "1235000000"; },
+	hotAddMemoryGroupUuid:  function() { return "1236000000"; },
+	hotAddCpuGroupUuid:     function() { return "1237000000"; },
+
 	// Refer to DefaultGroups.group.topology on classic. Names here must match group internal names in that filse
 	// (stripped of the "GROUP-" prefix).
+
 	defaultGroupsByName: {
 		"CloudDBSs": function(g) { return _this.allCloud(g, "DatabaseServer", "databaseServerByCloudProvider", "AZURE|AWS"); },
 		"CloudDBs": function(g) { return _this.allCloud(g, "Database", "databaseByCloudProvider", "AZURE"); },
@@ -379,18 +418,74 @@ var _this = {
 		// Hot add groups
 		"VimVMHotAddMem": function(g) { return _this.hotAdd(g, "vmsHotAddMemory" ); },
 		"VimVMHotAddCPU": function(g) { return _this.hotAdd(g, "vmsHotAddCPU" ); },
+		"ResizeAutomated": function(g) { return _this.staticGroupOfGroups(g, [_this.hotAddCpuGroupUuid(), _this.hotAddMemoryGroupUuid()] );},
 
 		// In XL hosts are "ON Prem" by definition - so this is equivalent to "all hosts"
 		"OnPremPMs": function(g) { return _this.allEntitiesOfType(g, "PhysicalMachine"); },
+		"PhysicalMachine": function(g) {return _this.staticGroupOfGroups(g, [_this.internalHostsGroupUuid(), _this.internalZonesGroupUuid()] ); },
 		"BusinessApplication": function(g) { return _this.allEntitiesOfType(g, "BusinessApplication"); },
+
+		"PhysicalMachineByDataCenter": function(g) { throw "Un-migratable group"; },
+//		function(g) {
+//			if (_this.chassisPresent()) {
+//				return null;	// The presense of Chasis means we have to go static.
+//			} else {
+//				return _this.staticGroupOfGroups(g, [_this.internalHostsGroupUuid(), _this.internalZonesGroupUuid()] );
+//			},
+//		},
+
+		"PhysicalMachineByChassis": function(g) { throw "Un-migratable group"; },
+
+		"PhysicalMachineByChassisOrDataCenter": function(g) {return _this.staticGroupOfGroups(g, [_this.internalHostsGroupUuid(), _this.internalZonesGroupUuid()] ); },
 
 		// Includes Application, ApplicationServer, DatabaseServer in classic
 		"Application": function(g) { throw "System 'Application' groups are not migratable"; },
 		"ApplicationByPhysicalMachine": function(g) { throw "System 'Application' groups are not migratable"; },
 		"ApplicationByType": function(g) { throw "System 'Application' groups are not migratable"; },
 		"ApplicationServer": function(g) { throw "System 'Application' groups are not migratable"; },
-		"ApplicationServerByType": function(g) { throw "System 'Application' groups are not migratable"; }
+		"ApplicationServerByType": function(g) { throw "System 'Application' groups are not migratable"; },
 
+		"AWSAccounts": function(g) {
+			return {
+			    "className": "Group",
+			    "criteriaList": [
+			        {
+			            "caseSensitive": false,
+			            "expType": "EQ",
+			            "expVal": "AWS",
+			            "filterType": "businessAccountCloudProvider",
+			            "singleLine": false
+			        }
+			    ],
+			    "displayName": _this.lib.mapGroupName(g.displayName),
+			    "groupType": "BusinessAccount",
+			    "isStatic": false,
+			    "logicalOperator": "AND",
+			};
+		},
+
+		"AzureAccounts": function(g) {
+			return {
+			    "className": "Group",
+			    "criteriaList": [
+			        {
+			            "caseSensitive": false,
+			            "expType": "EQ",
+			            "expVal": "AZURE",
+			            "filterType": "businessAccountCloudProvider",
+			            "singleLine": false
+			        }
+			    ],
+			    "displayName": _this.lib.mapGroupName(g.displayName),
+			    "groupType": "BusinessAccount",
+			    "isStatic": false,
+			    "logicalOperator": "AND",
+			};
+		}
+	},
+
+	set: function(name, value) {
+		_this[name] = value;
 	}
 };
 

@@ -26,7 +26,7 @@ if [ -s "${xl3_db}" ] && [ "${xl3_db}" -nt "${xldb}" ]; then
 fi
 
 if [ -t 0 ] && [ -t 1 ]; then
-	bin/viewer "Review Migrated Groups" sh -c "cd js && ../bin/tbscript @null compare-groups.js '${classic_db}' '${xldb}'"
+	bin/viewer -n "Review Migrated Groups" sh -c "cd js && ../bin/tbscript @null compare-groups.js '${classic_db}' '${xldb}'"
 	stat="$?"
 	if [ $stat = 9 ]; then
 		echo "Saving report to file '/tmp/groups.txt' ..."

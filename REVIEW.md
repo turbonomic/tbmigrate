@@ -1,12 +1,11 @@
 # Reviewing your XL instance after migration.
 
 * Date: 12/Nov/2020
-* Author: Chris Lowth
 * TbMigrate version: 3.9 and later
 
 For a version of this page that can be viewed on the internet, please go to:
 
-    https://github.com/turbonomic/tbmigrate/blob/master/REVIEW.md
+    <https://github.com/turbonomic/tbmigrate/blob/master/REVIEW.md>
 
 
 Note: In these notes, the term "classic" refers to the old Turbonomic Version 6 instance and "XL" refers to the new version 7 or 8 instance.

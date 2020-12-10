@@ -1,10 +1,10 @@
-# Downloading TbMigrate 3.8
+# Downloading TbMigrate 3.11
 
 | Description | Value |
 | ---- | ----- |
-| Tool Version | 3.8 |
-| Download From | https://github.com/turbonomic/tbmigrate/raw/master/dist/tbmigrate-3.8.tgz |
-| MD5 Check sum | a4ad47fed9504fd515c87e8cf2a20399 |
+| Tool Version | 3.11 |
+| Download From | https://github.com/turbonomic/tbmigrate/raw/master/dist/tbmigrate-3.11.tgz |
+| MD5 Check sum | 371bba8217de27928fcd678a6fa7a443 |
 
 
 ## If your V6.4 instance has access to the internet
@@ -14,25 +14,25 @@ If your V6.4 instance has access to the internet, you can download the tool dire
 1. Log in to the V6.4 instance as the "root" user using "putty" or other SSH client tool of your choice.
 2. Type the following commands..
    * `cd /tmp`
-   * `curl -LO https://github.com/turbonomic/tbmigrate/raw/master/dist/tbmigrate-3.8.tgz`
-   * `md5sum tbmigrate-3.8.tgz`
+   * `curl -LO https://github.com/turbonomic/tbmigrate/raw/master/dist/tbmigrate-3.11.tgz`
+   * `md5sum tbmigrate-3.11.tgz`
 
 The session will look like this...
 
 ```
 [root@turbonomic ~] cd /tmp
 
-[root@turbonomic tmp] curl -LO https://github.com/turbonomic/tbmigrate/raw/master/dist/tbmigrate-3.8.tgz
+[root@turbonomic tmp] curl -LO https://github.com/turbonomic/tbmigrate/raw/master/dist/tbmigrate-3.11.tgz
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
 100   150  100   150    0     0    756      0 --:--:-- --:--:-- --:--:--   757
 100 15.4M  100 15.4M    0     0  19.7M      0 --:--:-- --:--:-- --:--:-- 29.8M
 
-[root@turbonomic tmp] md5sum tbmigrate-3.8.tgz
-a4ad47fed9504fd515c87e8cf2a20399  tbmigrate-3.8.tgz
+[root@turbonomic tmp] md5sum tbmigrate-3.11.tgz
+371bba8217de27928fcd678a6fa7a443  tbmigrate-3.11.tgz
 ```
 
-The string `a4ad47fed9504fd515c87e8cf2a20399` in the last line is important - it tells you that the file has been downloaded correctly. If you have a different value there, then something has gone wrong.
+The string `371bba8217de27928fcd678a6fa7a443` in the last line is important - it tells you that the file has been downloaded correctly. If you have a different value there, then something has gone wrong.
 
 ## If your V6.4 instance does NOT have access to the internet
 
@@ -40,12 +40,12 @@ The way you should download the tool depends on how your environment is set up.
 
 A typical approach would be...
 
-1. Use a browser on your laptop to download the file from https://github.com/turbonomic/tbmigrate/raw/master/dist/tbmigrate-3.8.tgz 
+1. Use a browser on your laptop to download the file from https://github.com/turbonomic/tbmigrate/raw/master/dist/tbmigrate-3.11.tgz 
 2. Copy it to your jump host (if you use one).
 3. Copy it from your jumphost (or laptop) onto the V6.4 instance using the free "WinScp" tool or something similar. Place the in the "/tmp" directory.
 4. Log in to the V6.4 instance as the "root" user using "putty" or something similar.
 5. Type the following commands..
    * `cd /tmp`
-   * `md5sum tbmigrate-3.8.tgz`
-6. Check that you see the string `a4ad47fed9504fd515c87e8cf2a20399` - that means that the file has been downloaded correctly.
+   * `md5sum tbmigrate-3.11.tgz`
+6. Check that you see the string `371bba8217de27928fcd678a6fa7a443` - that means that the file has been downloaded correctly.
 

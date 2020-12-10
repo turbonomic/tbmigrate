@@ -4,6 +4,8 @@ var xlDb = P.open("file:"+args[1]+"?mode=rw");
 
 var lib = require("./libmigrate.js");
 var cm = require("./group-creation-map.js");
+cm.set("lib", lib);
+
 var fn = require("@/functions");
 
 var sql1 = `select * from groups_plus where displayName not regexp ? order by order_ desc`;
@@ -17,6 +19,8 @@ var inViewer = getenv("IN_VIEWER") === "true";
 var red = inViewer ? "[red]" : "";
 var sgr0 = inViewer ? "[-]" : "";
 
+var nameMap = lib.getGroupNameMap(classicDb);
+
 function mapGroupName(dn) {
 	dn = dn.replace(/\\/g, "/");
 	return dn;
@@ -25,8 +29,11 @@ function mapGroupName(dn) {
 classicDb.query(sql1, [ lib.nameMap.excluded_group_names_re ]).forEach(classicGroup => {
 	if (parseInt(classicGroup.isCustom) === 0 && parseInt(classicGroup.isStatic) === 1 && !classicGroup.category) {
 		// these are groups that we dont create but check the existance of in "migrate_groups.js"
-		return;
+//		return;
 	}
+
+	var xlName = mapGroupName(nameMap[classicGroup.uuid] || classicGroup.displayName);
+
 	var xlGroup = null;
 	var n = 0;
 	xlDb.query(sql2, [ classicGroup.uuid ]).forEach(g => { xlGroup = g; n += 1; });
@@ -34,7 +41,7 @@ classicDb.query(sql1, [ lib.nameMap.excluded_group_names_re ]).forEach(classicGr
 	var t1 = classicGroup.isStatic === "1" ? "static" : "dynamic";
 	var type = t1;
 	if (xlGroup === null) {
-		xlDb.query(sql3, [mapGroupName(classicGroup.displayName)]).forEach(g => {
+		xlDb.query(sql3, [xlName]).forEach(g => {
 			n += 1;
 			xlGroup = g;
 		});
@@ -76,11 +83,11 @@ classicDb.query(sql1, [ lib.nameMap.excluded_group_names_re ]).forEach(classicGr
 	classicGroup.count = classicGroup.entitiesCount;
 
 	// Some groups should be compared via the direct members rather than leaf entities
-	if (classicGroup.groupType === "BusinessAccount") {
+	if (lib.shouldCountMembers(classicGroup)) {
 		if (xlGroup) {
 			xlGroup.count = xlGroup.membersCount;
 		}
-			classicGroup.count = classicGroup.membersCount;
+		classicGroup.count = classicGroup.membersCount;
 	}
 
 	var diff = null;
@@ -89,7 +96,7 @@ classicDb.query(sql1, [ lib.nameMap.excluded_group_names_re ]).forEach(classicGr
 	}
 
 	rows.push([
-		classicGroup.displayName.limitLength(65),
+		xlName.limitLength(65),
 		classicGroup.category ? category : classicGroup.groupType,
 		classicGroup.count,
 		xlGroup === null ? "-" : xlGroup.count,

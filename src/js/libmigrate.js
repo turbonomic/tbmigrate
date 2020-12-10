@@ -1,6 +1,12 @@
-exports.nameMap = JSON.parse(loadText("name-map.json").join("\n").replace(/\n/g, " ").replace(/\/\*.*?\*\//g, ""));
-exports.nameMap.excluded_group_names_re = exports.nameMap.excluded_group_names_res.join("|");
+exports.nameMap = JSON.parse(
+	loadText("name-map.json").
+		filter( line => { return line.match(/^\s*\/\//) ? "" : line; }).
+		join(" ").
+		replace(/\/\*.*?\*\//g, "")
+	);
 
+
+exports.nameMap.excluded_group_names_re = exports.nameMap.excluded_group_names_res.join("|");
 exports.nameMap.target_cooker_script_lib = { };
 _.keys(exports.nameMap.target_cooker_script_map).forEach(typ => {
 	exports.nameMap.target_cooker_script_lib[typ] = require("./" + exports.nameMap.target_cooker_script_map[typ]);
@@ -48,14 +54,19 @@ exports.createEntityTable = function(db) {
 };
 
 exports.saveEntity = function(db, e) {
-	if (!e.remoteId && e.vendorIds) {
-		var ids = { };
-		_.keys(e.vendorIds || {}).forEach(k => {
-			ids[e.vendorIds[k]] = true;
-		});
-		ids = _.keys(ids);
-		if (ids.length === 1) {
-			e.remoteId = ids[0];
+	if (!e.remoteId) {
+		var id = (e.vendorIds || {})[(e.discoveredBy || {}).displayName || "==="];
+		if (id) {
+			e.remoteId = id;
+		} else if (e.vendorIds) {
+			var ids = { };
+			_.keys(e.vendorIds || {}).forEach(k => {
+				ids[e.vendorIds[k]] = true;
+			});
+			ids = _.keys(ids);
+			if (ids.length === 1) {
+				e.remoteId = ids[0];
+			}
 		}
 	}
 
@@ -119,6 +130,7 @@ exports.createGroupTables = function(db) {
 		create table groups (
 			className, uuid, displayName, groupType, environmentType,
 			isStatic, isCustom, isDiscovered, entitiesCount, membersCount, order_, why,
+			discoveredBy,
 			json
 		)
 	`);
@@ -131,7 +143,7 @@ exports.createGroupTables = function(db) {
 //	db.exec(`create table v1groups (uuid, className, name, displayName)`);
 //	db.exec(`create unique index v1group_uuid on v1groups ( uuid )`);
 
-	db.exec(`create table group_uuid_mapping (classicUuid, xlUuid)`);
+	db.exec(`create table group_uuid_mapping (classicUuid, xlUuid, step)`);
 	db.exec("create unique index group_uuid_mapping_idx on group_uuid_mapping (classicUuid)");
 
 	db.exec(`create table group_category (uuid, category)`);
@@ -139,7 +151,7 @@ exports.createGroupTables = function(db) {
 };
 
 exports.saveGroup = function(db, g, order, why) {
-	var rtn = db.exec("replace into groups values (?, ?, ?, ?, ?, ?, ?, ?, cast(? as int), cast(? as int), cast(? as int), ?, ?)",[
+	var rtn = db.exec("replace into groups values (?, ?, ?, ?, ?, ?, ?, ?, cast(? as int), cast(? as int), cast(? as int), ?, ?, ?)",[
 		g.className,
 		g.uuid,
 		g.displayName,
@@ -152,6 +164,7 @@ exports.saveGroup = function(db, g, order, why) {
 		g.membersCount,
 		order,
 		why.join(", "),
+		(((g.discoveredBy || {}).uuid) || ((g.source || {}).uuid)) || "",
 		JSON.stringify(g)
 	]);
 };
@@ -174,13 +187,51 @@ exports.saveApiV1Group = function(db, g) {
 };
 */
 
-exports.saveGroupMapping = function(db, classicUuid, xlUuid) {
-	db.exec("replace into group_uuid_mapping values(?, ?)", [ classicUuid, xlUuid ]);
+exports.saveGroupMapping = function(db, classicUuid, xlUuid, step) {
+	db.exec("replace into group_uuid_mapping values(?, ?, ?)", [ classicUuid, xlUuid, step ]);
 };
 
 exports.saveGroupCategory = function(db, uuid, category) {
 	db.exec("replace into group_category values(?, ?)", [ uuid, category ]);
 };
+
+
+//==============================================================================================================
+// For groups we need to create, but salt the name to de-duplicate, this maps the classic UUID to the
+// needed XL name. This excludes groups that we expect to pre-exist.
+
+exports.getGroupNameMap = function(db) {
+	var nameMap = { };
+
+	var sql = `
+		select uuid, displayName, count(*)n
+		from groups_plus
+		where not (isCustom = 0 and isStatic = 1 and category is null)
+		group by displayName
+	`;
+
+	db.query(sql).forEach(row => {
+		var n = parseInt(row.n);
+		if (n === 1) {
+			// nameMap[row.uuid] = row.displayName;
+		} else if (n > 1) {
+			var sql2 = `
+				select uuid, nameWithTarget, count(*)n
+				from groups_plus
+				where displayName = ? and nameWithTarget <> displayName
+				group by nameWithTarget
+			`;
+			db.query(sql2, [row.displayName]). forEach(row2 => {
+				var n2 = parseInt(row2.n);
+				if (n2 === 1) {
+					nameMap[row2.uuid] = row2.nameWithTarget;
+				}
+			});
+		}
+	});
+	return nameMap;
+};
+
 
 // =====================================================================================
 
@@ -248,6 +299,10 @@ exports.probeExists = function(db, name, type) {
 exports.createTargetTables = function(db) {
 	db.exec("create table targets (category, type, uuid, displayName, name, isScoped, json)");
 	db.exec("create unique index target_uuid on targets ( uuid )");
+
+	db.exec("create table derived_targets (category, type, uuid, displayName, name, isScoped, json)");
+	db.exec("create unique index derived_target_uuid on derived_targets ( uuid )");
+
 	db.exec("create table target_scopes (targetUuid, fieldName, groupUuid, found)");
 
 };
@@ -301,6 +356,19 @@ exports.targetIsScopedByUuid = function(db, uuid) {
 
 exports.saveTarget = function(db, t) {
 	db.exec("replace into targets values (?, ?, ?, ?, ?, ?, ?)", [
+		t.category,
+		t.type,
+		t.uuid,
+		t.displayName,
+		this.getTargetName(t),
+		this.isTargetScoped(t),
+		JSON.stringify(t)
+	]);
+};
+
+
+exports.saveDerivedTarget = function(db, t) {
+	db.exec("replace into derived_targets values (?, ?, ?, ?, ?, ?, ?)", [
 		t.category,
 		t.type,
 		t.uuid,
@@ -656,6 +724,217 @@ exports.getEntityTypes = function(db, groupUuid) {
 };
 
 // =====================================================================================
+
+exports.shouldCountMembers = function(g) {
+	return [ "BusinessAccount", "ResourceGroup", "DataCenter" ].contains(g.groupType);
+};
+
+
+exports.mapGroupClass = function(cn) {
+	return exports.nameMap.class_name_map[cn] || cn;
+};
+
+
+exports.mapGroupName = function(dn) {
+	dn = dn.replace(/\\/g, "/");
+	return dn;
+};
+
+
+exports.isPhysicalMachine = function(db, name) {
+	var classes = db.query("select distinct className from entities where name = ?", [name]).map(row => { return row.className; });
+	return classes.length === 1 &&  classes[0] === "PhysicalMachine";
+};
+
+
+// given a classic entity object, find the matching one in XL ..
+exports.findEntityInXl = function(classicDb, xlDb, nameMap, e) {
+	if (e.json) {
+		e = JSON.parse(e.json);
+	}
+
+	// WMI applications have no key in common between XL and classic so we need to resort to parsing out the display name.
+	if (e.className === "Application" && (e.discoveredBy || {}).type === "WMI") {
+		var m = e.displayName.match(/^(.*?)\[(.*?)\]$/);
+		if (m && m.length === 3) {
+			var vmName = m[2];
+			var appName = m[1];
+			var wmiFound = [ ];
+			xlDb.query("select uuid, json from entities where displayName like (? || ' ' || ? || ' [%]')", [appName, vmName]).forEach(row => {
+				var obj2 = JSON.parse(row.json);
+				if (
+					(obj2.discoveredBy || {}).type === "WMI" &&
+					obj2.className === "ApplicationComponent" &&
+					(obj2.providers || []).length === 1 &&
+					obj2.providers[0].className === "VirtualMachine" &&
+					obj2.providers[0].displayName === vmName
+				) {
+					wmiFound.push(obj2);
+				}
+			});
+			if (wmiFound.length === 1) {
+				return wmiFound[0];
+			}
+		}
+	}
+
+	// for AWS, AZURE and GCP: the remote Ids are differently formatted between classic and XL.
+	// -- classic ones look like : azure::VM::d653a2fe-8a55-4796-a25a-a32dcfea4d43
+	// -- XL ones look like      : d653a2fe-8a55-4796-a25a-a32dcfea4d43
+
+	var rid1 = e.remoteId || "";	// orignal, undoctored remote ID
+	var rid2 = e.remoteId || "";	// potentially cleaned up remote ID
+
+	if (rid2.match(/^(aws|azure|gcp)::/)) {
+		var r = rid2.split(/::/);
+		rid2 = r[r.length-1];
+	}
+
+	var xlDispName = nameMap[e.uuid] || e.displayName;
+	var xlClass = exports.mapGroupClass(e.className);
+
+	if (exports.isAGroup(e)) {
+		xlDispName = exports.mapGroupName(xlDispName);
+	}
+
+	// basic match - by class, displayName and remoteId
+	var sql = "select * from entities where className = ? and displayName = ? and (remoteId in (?, ?) or className = 'Cluster')";
+	var found = xlDb.query(sql, [xlClass, xlDispName, rid1 || "", rid2 || ""]);
+	if (found.length === 1) {
+		return JSON.parse(found[0].json);
+	}
+
+	// Maybe there are multiple remoteIds
+	if (found.length === 0 && _.keys(e.vendorIds || {}).length > 0) {
+		// Naive match: if ANY of the remoteId values listed for classic are found in XL's list then that's good enough.
+		// we dont expect the target names to match (because they dont, often enough to cause trouble).
+
+		var remoteIdMatch = function(row) {
+			var rtn = false;
+			var obj = JSON.parse(row.json);
+			var xlIds = _.values(obj.remoteId || {});
+			var classicIds = _.values(e.remoteId || {});
+			classicIds.forEach(id => { rtn = rtn | xlIds.contains(id); });
+			return rtn;
+		};
+
+		var found3 = xlDb.query("select json from entities where className = ? and displayName = ?", [xlClass, xlDispName]).filter(remoteIdMatch);
+		if (found3.length === 1) {
+			return JSON.parse(found3[0].json);
+		}
+	}
+
+	// Disambiguate ResourceGroups using the parent name
+	if (found.length > 1 && e.className === "ResourceGroup" && e.parentDisplayName) {
+		var found4 = found.filter(f => {
+			var obj = JSON.parse(f.json);
+			return obj.parentDisplayName && obj.parentDisplayName === e.parentDisplayName;
+		});
+		if (found4.length === 1) {
+			return found4[0];
+		}
+	}
+
+	// Get the targetUuid and name in classic
+
+	var targetUuid = (e.discoveredBy || e.source || {}).uuid;
+
+	// "special case" logic for Azure accounts..
+
+	if (!targetUuid && e.className === "BusinessAccount" && e.cloudType === "AZURE" && (e.targets || []).length === 1 && e.targets[0].type === "Azure") {
+		targetUuid = e.targets[0].uuid;
+	}
+
+	// Find the target name in classic
+
+	var targetName = null;
+	var xlTargetUuid = null;
+	var xlTargetStatus = null;
+	if (targetUuid) {
+		classicDb.query("select name from targets where uuid = ?", [targetUuid]).forEach(row => {
+			targetName = row.name;
+		});
+		if (!targetName) {
+			classicDb.query("select name from derived_targets where uuid = ?", [targetUuid]).forEach(row => {
+				targetName = row.name;
+			});
+		}
+		if (targetName) {
+			xlDb.query("select uuid, json from targets where name = ?", [targetName]).forEach(row => {
+				xlTargetUuid = row.uuid;
+				xlTargetStatus = JSON.parse(row.json).status;
+			});
+			if (!xlTargetUuid) {
+				xlDb.query("select uuid, json from derived_targets where name = ?", [targetName]).forEach(row => {
+					xlTargetUuid = row.uuid;
+					xlTargetStatus = JSON.parse(row.json).status;
+				});
+			}
+		}
+	}
+
+	// If more than one entity found, try to disambiguate using the name of the related target.
+	if (found.length > 1 && xlTargetUuid !== null) {
+		var filtered = found.filter(entity => {
+			var obj = JSON.parse(entity.json);
+			var u = (obj.discoveredBy || obj.source || {}).uuid;
+			return xlTargetUuid === u;
+		});
+
+		if (filtered.length === 1) {
+			return JSON.parse(filtered[0].json);
+		}
+	}
+
+
+	// Still no match - try to match the uuid in class against the remoteId in XL
+	var found2 = xlDb.query(`select * from entities where className = ? and json like ('%"' || ? || '"%')`, [xlClass, e.uuid]);
+	found2 = found2.filter(entity => {
+		var obj = JSON.parse(entity.json);
+		return (obj.remoteId === e.uuid);
+	});
+
+	if (found2.length === 1) {
+		return JSON.parse(found2[0].json);
+	}
+
+
+	// Still no match - try the Cluster special case where the name is two parts delimited by a slash in classic but
+	// only the 2nd part is used in XL.
+	if (xlClass === "Cluster" && !e.$clusterNameHackFlag) {
+		var f = xlDispName.split("/");
+		if (f.length === 2) {
+			var e2 = _.deepClone(e);
+			e2.displayName = f[1];
+			e2.$clusterNameHackFlag = true;
+			return this.findEntityInXl(classicDb, xlDb, nameMap, e2);
+		}
+	}
+
+	if (xlTargetStatus && targetName && xlTargetStatus !== "Validated") {
+		var err1 = new Error(sprintf("Entity '%s::%s' not found (target '%s' not validated)", xlClass, xlDispName, targetName));
+		err1.noTarget = true;
+		throw err1;
+	} else if (targetName && !xlTargetUuid) {
+		var err2 = new Error(sprintf("Entity '%s::%s' not found (target '%s' not migrated)", xlClass, xlDispName, targetName));
+		err2.noTarget = true;
+		throw err2;
+	} else if (e.className === "Storage" && (e.discoveredBy || {}).type === "Azure") {
+		var err4 = new Error(sprintf("Entity '%s::%s' not found (Azure Storage objects not implemented in XL)", xlClass, xlDispName));
+		err4.unsupported = true;
+		throw err4;
+	} else if (e.className === "Application" && e.displayName.hasPrefix("GuestLoad")) {
+		var err5 = new Error(sprintf("Entity '%s::%s' not found (GuestLoad objects not implemented in XL)", xlClass, xlDispName));
+		err5.unsupported = true;
+		throw err5;
+	} else {
+		var err3 = new Error(sprintf("Entity '%s::%s' not found", xlClass, xlDispName));
+		err3.noTarget = false;
+		throw err3;
+	}
+};
+
+// =====================================================================================
 // Define some global functions.
 
 // jshint -W117, -W020
@@ -702,6 +981,13 @@ success = function(str) {
 
 warning = function(str) {
 	colour("hiYellow");
+	print(str);
+	colour();
+	println();
+};
+
+warning2 = function(str) {
+	colour("hiMagenta");
 	print(str);
 	colour();
 	println();

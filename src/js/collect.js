@@ -5,6 +5,8 @@
 
 var lib = require("./libmigrate.js");
 var cm = require("./group-creation-map.js");
+cm.set("lib", lib);
+
 var F = require("@/functions");
 var P = plugin("sqlite3-plugin");
 var S = plugin("sys-plugin");
@@ -64,6 +66,9 @@ var neededGroups = { };		// UUIDs Groups we need to migrate
 var cachedGroups = { };		// UUIDs of Groups we've written to the DB
 var defaultGroupUuids = { }; // UUID->Name of GROUP-aaaBybbb groups we found in the static CSV file
 var groupCategories = { };	// UUID->Category mapping for groups who are direct members of defaultGroups
+var nameMap = { };
+
+var myGroupsByUuid = { };
 
 
 // ====================================================================================
@@ -80,18 +85,26 @@ function needMembers(g) {
 
 	// of course, we always need to know the members of static groups.
 
-	if (g.isStatic) { return true; }
+	if (g.isStatic) {
+		return true;
+	}
 
+	// Dynamic custom group with no criteria
+
+	if (g.isCustom && !g.isStatic && (!g.criteriaList || g.criteriaList.length === 0)) {
+		return true;
+	}
 
 	// Classic groups that have a category parent, but have no dynamic group criteria to make the
 	// equivalent in XL.
 
 	var category = groupCategories[g.uuid];
-	if (category && !cm.creatorMap[category.trimPrefix("GROUP-")]) {
-		return true;
+	if (category) {
+		var creator = cm.creatorMap[category.trimPrefix("GROUP-")];
+		if (creator === null) { return true; }
+		if (creator !== undefined && creator(g) === null) { return true; }
 	}
 
-	
 	// Check to see whether or not we can support this group as dyanmic in XL (if a target criteria
 	// file has been specified on the command line).
 
@@ -108,6 +121,13 @@ function needMembers(g) {
 				rtn = true;
 			}
 		});
+	}
+
+	// If we have to salt the name with the target to make it unique, then we cant use dynamic
+	// filters (there is no entity-by-target filter).
+
+	if (nameMap[g.uuid]) {
+		return true;
 	}
 
 	// If this is a default group and the group-creation-map file's "defaultGroupsByName" section has a "null"
@@ -155,6 +175,23 @@ function mapGroupName(dn) {
 	return dn;
 }
 
+
+function saveGroup(db, g, order, reason) {
+	lib.saveGroup(db, g, order, reason);
+	lib.saveEntity(db, g);
+
+	if (!client.isXL()) {
+		var path0 = client.getParentGroups(g.uuid, { path: true });
+		var path = path0.filter(g2 => { return g2.uuid !== g.uuid; });
+
+		if (path.length > 0 && path.length === (path0.length - 1)) {
+			var catUuid = path[path.length - 1].uuid;
+			if (defaultGroupUuids[catUuid]) {
+				groupCategories[g.uuid] = defaultGroupUuids[catUuid];
+			}
+		}
+	}
+}
 
 function saveMapping(tableName, saveFunc, dnMappingFunc) {
 	if (sourceDb) {
@@ -204,7 +241,6 @@ function saveMapping(tableName, saveFunc, dnMappingFunc) {
 				saveFunc(db, sUuid, uuid);
 			}
 		});
-
 	}
 }
 
@@ -231,7 +267,6 @@ function getFilterCategory(entType, filterType) {
 	return rtnRow.filterCriteria;
 }
 
-
 // ====================================================================================
 
 title("Collecting meta data");
@@ -249,6 +284,7 @@ lib.saveMetaData(db, "credKey", client.getCredentialKey());
 lib.saveMetaData(db, "user", userInfo);
 lib.saveMetaData(db, "skip-passwords", args_["skip-passwords"] ? true : false);
 lib.saveMetaData(db, "settings-specs", client.getSettingsSpecs({}));
+
 
 // ====================================================================================
 
@@ -318,6 +354,7 @@ if (checkDiscoveryState) {
 	}
 }
 
+
 // ====================================================================================
 
 title("Collecting targets");
@@ -333,6 +370,10 @@ targets.forEach(t => {
 	(t.derivedTargets || []).forEach(t => {
 		derivedTargets[t.uuid] = true;
 	});
+});
+
+targets.filter(t => { return derivedTargets[t.uuid]; }).forEach(t => {
+	lib.saveDerivedTarget(db, t);
 });
 
 targets.filter(t => { return !derivedTargets[t.uuid]; }).forEach(t => {
@@ -438,20 +479,25 @@ if ( !args_["skip-passwords"]) {
 
 if (checkDiscoveryState) {
 
-	var quotedNames = lib.nameMap.target_types_that_always_create_groups.map(t => { return '"' + t + '"'; });
+	var quotedNames = _.keys(lib.nameMap.target_types_that_always_create_groups).map(t => { return '"' + t + '"'; });
+	var groupPatterns = { };
 	var n = 0;
-	db.query("select count(*) n from targets where type in ("+quotedNames.join(",")+")").forEach(row => {
-		n = parseInt(row.n);
+	db.query("select type, count(*) n from targets where type in ("+quotedNames.join(",")+") group by type").forEach(row => {
+		n += parseInt(row.n);
+		(lib.nameMap.target_types_that_always_create_groups[row.type] || []).forEach(patn => {
+			groupPatterns["(" + patn + ")"] = true;
+		});
 	});
 
 	if (n > 0) {
-		title("Collecting groups");
+		title("Checking expected discovered groups");
 
 		lib.createGroupTables(db);
 
-		var opts = { types: "Group", environment_type: "HYBRID" };
+		var opts = { types: "Group", environment_type: "HYBRID", q: _.keys(groupPatterns).join("|") };
 		client.paginate("getSearchResults", opts, g => {
 			print(".");
+//			println(g.displayName);
 			lib.saveXlGroup(db, g);
 		});
 		println("");
@@ -503,6 +549,7 @@ lib.createSettingsPolicyTables(db);
 
 var policyNameByUuid = { };
 var policyUuidsByScopeUuid = { };
+var policiesWithBrokenScope = [ ];
 
 client.getSettingsPolicies().forEach(t => {
 	if (t.readOnly === true) {
@@ -520,6 +567,15 @@ client.getSettingsPolicies().forEach(t => {
 		bar();
 		lib.saveSettingsPolicy(db, t, true);
 		policyNameByUuid[t.uuid] = t.displayName;
+		var ok = true;
+		(t.scopes || []).forEach(s => {
+			if (s.displayName === "VMT_SETTINGS_POLICY_FAKE_GROUP") {
+				ok = false;
+			}
+		});
+		if (!ok) {
+			policiesWithBrokenScope.push(t);
+		}
 	}
 });
 
@@ -527,6 +583,13 @@ saveMapping("settings_types", lib.saveSettingsMapping, null);
 
 println("");
 
+policiesWithBrokenScope.sort((a, b) => {
+	var aa = a.displayName.toLowerCase();
+	var bb = b.displayName.toLowerCase();
+	if (aa < bb) { return -1; }
+	if (aa > bb) { return 1; }
+	return 0;
+});
 
 // ====================================================================================
 
@@ -537,8 +600,10 @@ lib.createPlacementPolicyTables(db);
 try {
 	client.getPoliciesByMarketUuid("Market").forEach(p => {
 		if (p.commodityType === "DrsSegmentationCommodity") {
+			// these should be automatically discovered, so we skip them
 			return;
 		}
+
 		var include = true;
 
 		lib.nameMap.excluded_placement_policy_name_res.forEach(re => {
@@ -570,7 +635,7 @@ try {
 } catch (ex) {
 	error("Error: unable to collect placement policies (API reported a failure)");
 	println("Please confirm that you can see the expected placement policies in the UI and");
-	println("fix and/or re-run this script before attempting migration of policies.");
+	println("fix them and re-run this script before attempting migration of policies.");
 }
 
 
@@ -638,19 +703,18 @@ if (!client.isXL()) {
 	groups.shift();
 
 	groups.forEach(row => {
-		if (row[2].match(/^GROUP-[A-Za-z]*By[A-Za-z]*$/) || cm.defaultGroupsByName[row[2].trimPrefix("GROUP-")] !== undefined) {
+//		if (row[2].match(/^GROUP-[A-Za-z]*By[A-Za-z]*$/) || cm.defaultGroupsByName[row[2].trimPrefix("GROUP-")] !== undefined) {
+		if (row[2].match(/^GROUP-[A-Za-z]*$/) || cm.defaultGroupsByName[row[2].trimPrefix("GROUP-")] !== undefined) {
 			defaultGroupUuids[row[0]] = row[2];
 		}
 	});
 }
 
-var myGroupsByUuid = { };
-
 try {
 	client.getMembersByGroupUuid("GROUP-MyGroups", {include_aspects: false}).forEach(g => {
 		var include = true;
 
-		lib.nameMap.excluded_user_group_name_res.forEach(re => {
+		lib.nameMap.excluded_group_names_res.forEach(re => {
 			if (g.displayName.match(re)) {
 				include = false;
 			}
@@ -667,7 +731,6 @@ try {
 		}
 	});
 } catch(ex) { }
-
 
 var missingScopeUuids = { };
 
@@ -703,16 +766,7 @@ while (true) {
 				g.isCustom = false;
 			}
 
-			lib.saveGroup(db, g, order, neededGroups[uuid]);
-			lib.saveEntity(db, g);
-
-			if (!client.isXL()) {
-				client.getParentGroups(uuid, { }).forEach(pg => {
-					if (defaultGroupUuids[pg.uuid]) {
-						groupCategories[uuid] = defaultGroupUuids[pg.uuid];
-					}
-				});
-			}
+			saveGroup(db, g, order, neededGroups[uuid]);
 
 			cachedGroups[uuid] = true;
 			if (needMembers(g) && g.membersCount > 0 && !isDefaultGroupThatThrowsError(uuid)) {
@@ -766,7 +820,7 @@ if (client.isXL()) {
 		var n = parseInt(db.query("select count(*) n from groups where uuid = ?", [g.uuid])[0].n);
 		if (n === 0) {
 			print(".");
-			lib.saveGroup(db, g, -1, [ ""]);
+			saveGroup(db, g, -1, [""]);
 		}
 	});
 
@@ -782,6 +836,11 @@ if (client.isXL()) {
 	// printf("<%d>\n", n);
 	println("");
 }
+
+// add bad policies detected earlier to the list we're going to report on
+policiesWithBrokenScope.forEach(p => {
+	missingScopeUuids[p.uuid] = true;
+});
 
 missingScopeUuids = _.keys(missingScopeUuids);
 if (missingScopeUuids.length > 0) {
@@ -856,6 +915,11 @@ db.query("select json from groups where isStatic = 0").forEach(row => {
 					print(".");
 				} catch (ex) {
 					print("!");
+					if (getenv("show_group_errors")) { // -- dev/debug aid
+						println("");
+						ex.g_uuid = uuid;
+						printJson(ex);
+					}
 				}
 			});
 		}
@@ -964,14 +1028,14 @@ if (sourceDb !== null) {
 			if (foundUuid === null) {
 				var found = client.findByName(row.className, mappedName);
 				if (found) {
-					lib.saveGroup(db, found, -1, ["in classic"]);
+					saveGroup(db, found, -1, ["in classic"]);
 					foundUuid = found.uuid;
 					how = "api";
 				}
 			}
 
 			if (foundUuid !== null) {
-				lib.saveGroupMapping(db, row.uuid, foundUuid);
+				lib.saveGroupMapping(db, row.uuid, foundUuid, 0);
 			}
 		});
 	}
@@ -1051,12 +1115,34 @@ db.exec(`update target_scopes set found = (select count(*) from groups g where g
 // an extended version of the "groups" table that includes the group category (eg: "GROUP-VirtualMachineByCluster")
 db.exec(`
 	create view groups_plus as
-		select g.*, gc.category
+		select
+			g.*,
+			gc.category,
+			(case when t.name is null then g.displayName else (g.displayName || " (" || lower(t.name) || ")") end) nameWithTarget
 		from groups g
 		left join group_category gc on g.uuid = gc.uuid
+		left join targets t on t.uuid = g.discoveredBy
+
 `);
 
+// ====================================================================================
 
+if (!client.isXL()) {
+	title("Get mapped group members");
+
+	nameMap = lib.getGroupNameMap(db);
+
+	_.keys(nameMap).forEach(uuid => {
+		bar();
+		client.paginate("getMembersByGroupUuid", uuid, {}, m => {
+			print(".");
+			lib.saveGroupMembership(db, uuid, m.uuid);
+			lib.saveEntity(db, m);
+		});
+	});
+
+	println("");
+}
 
 // ====================================================================================
 

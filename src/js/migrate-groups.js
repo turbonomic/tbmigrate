@@ -2,8 +2,8 @@
 
 // Usage is: tbscript @xl migrate-static-groups.js {classicDbFile} {xlDbFile}
 
-/* jshint -W014, -W119, -W083 */
-/* globals warning, success, error, note */
+/* jshint -W014, -W119, -W083, -W080 */
+/* globals warning, warning2, success, error, note */
 
 var F = require("@/functions");
 
@@ -40,6 +40,8 @@ var xlDb = P.open("file:"+args_.remaining[1]+"?mode=rw");
 
 var lib = require("./libmigrate.js");
 var cm = require("./group-creation-map.js");
+cm.set("lib", lib);
+
 var dg = loadCsv("./defaultGroups.csv");
 
 var groupClassRe = new RegExp(lib.nameMap.group_class_re);
@@ -49,15 +51,18 @@ lib.disableAllActions(client, xlDb);
 var numGroups = 0;	// number of groups to be migrated
 var groupNum = 0;	// the number of the group being pushed.
 
+var nameMap = lib.getGroupNameMap(classicDb);
+
+var screenWidth = parseInt(getenv("width") || "100");
+
+// List of dynamic and system groups that need to be create static
+var deferredStaticGroups = [ ];
+
 // =================================================================================
 
-function mapGroupName(dn) {
-	dn = dn.replace(/\\/g, "/");
-	return dn;
-}
-
-function mapGroupClass(cn) {
-	return lib.nameMap.class_name_map[cn] || cn;
+function getXlGroupName(g) {
+	var dn = nameMap[g.uuid] || g.displayName;
+	return lib.mapGroupName(dn);
 }
 
 function saveGroup(db, group) {
@@ -81,9 +86,10 @@ function isFromMissingTarget(e) {
 
 // is the group discovered by a scoped target?
 function isFromScopedTarget(g) {
-	if (!g.source) { return false; } // not a discovered target
+	var disco = g.discoveredBy || g.source;
+	if (!disco) { return false; } // not a discovered target
 
-	return lib.targetIsScopedByUuid(classicDb, g.source.uuid);
+	return lib.targetIsScopedByUuid(classicDb, disco.uuid);
 }
 
 // are all group members from scoped targets?
@@ -92,8 +98,9 @@ function areAllMembersFromScopedTargets(groupUuid) {
 	var allDiscovered = true;
 	classicDb.query(`select e.json from group_members m, entities e where groupUuid = ? and e.uuid = m.entityUuid`, [groupUuid]).forEach(row => {
 		var obj = JSON.parse(row.json);
-		if (obj.discoveredBy) {
-			targetUuids[obj.discoveredBy.uuid] = true;
+		var disco = obj.discoveredBy || obj.source;
+		if (disco) {
+			targetUuids[disco.uuid] = true;
 		} else {
 			allDiscovered = false;
 		}
@@ -114,40 +121,233 @@ function areAllMembersFromScopedTargets(groupUuid) {
 	return numScoped === numTargets && numTargets > 0;
 }
 
+function checkGroupTarget(g) {
+	if (g.discoveredBy !== "") {
+		var targetName = null;
+		var targetRow = null;
+
+		classicDb.query("select name from targets where uuid = ?", [g.discoveredBy]).forEach(row => {
+			targetName = row.name;
+		});
+
+		if (targetName === null) {
+			classicDb.query("select name from derived_targets where uuid = ?", [g.discoveredBy]).forEach(row => {
+				targetName = row.name;
+			});
+		}
+
+		if (targetName !== null) {
+			xlDb.query("select * from targets where name = ?", [targetName]).forEach(row => {
+				targetRow = row;
+			});
+			if (targetRow === null) {
+				xlDb.query("select * from derived_targets where name = ?", [targetName]).forEach(row => {
+					targetRow = row;
+				});
+			}
+		}
+
+		if (targetRow === null) {
+			error(sprintf("   Error: skipped - source target (%s) not migrated", targetName));
+			return false;
+		}
+
+		var obj = JSON.parse(targetRow.json);
+		if (obj.status !== "Validated") {
+			warning(sprintf("   Warning: source target '%s' not validated - group may be incomplete", targetName));
+		}
+	}
+	return true;
+}
+
+
+// =================================================================================
+
+var internalHostsGroupUuid = undefined;
+var internalZonesGroupUuid = undefined;
+var hotAddMemoryGroupUuid = undefined;
+var hotAddCpuGroupUuid = undefined;
+
+function getInternalGroupUuid(name, dto) {
+	var uuid = null;
+	xlDb.query("select uuid from groups where displayName = ?", [name]).forEach(row => {
+		uuid = row.uuid;
+	});
+	if (uuid !== null) {
+		return uuid;
+	}
+
+	try {
+		var newGroup = client.createGroup(dto);
+		lib.saveGroup(xlDb, newGroup, -1, [""]);
+		return newGroup.uuid;
+	} catch (ex) {
+		try {
+			var newGroup = client.findByName("Group", name);
+			if (newGroup) {
+				lib.saveGroup(xlDb, newGroup, -1, [""]);
+				return newGroup.uuid;
+			} else {
+				return null;
+			}
+		} catch (ex2) {
+			return null;
+		}
+	}
+}
+
+
+cm.set("internalHostsGroupUuid", function() {
+	if (internalHostsGroupUuid !== undefined) { return internalHostsGroupUuid; }
+
+	var dto = {
+	    "className": "Group",
+	    "criteriaList": [
+	        {
+	            "caseSensitive": false,
+	            "expType": "RXEQ",
+	            "expVal": ".*",
+	            "filterType": "pmsByName",
+	            "singleLine": false
+	        }
+	    ],
+	    "displayName": "INTERNAL-AllHosts",
+	    "groupType": "PhysicalMachine",
+	    "isStatic": false,
+	    "logicalOperator": "AND"
+	};
+	internalHostsGroupUuid = getInternalGroupUuid("INTERNAL-AllHosts", dto);
+	return internalHostsGroupUuid;
+});
+
+
+cm.set("internalZonesGroupUuid", function() {
+	if (internalZonesGroupUuid !== undefined) { return internalZonesGroupUuid; }
+
+	var dto = {
+	    "className": "Group",
+	    "criteriaList": [
+	        {
+	            "caseSensitive": false,
+	            "expType": "RXEQ",
+	            "expVal": ".*",
+	            "filterType": "zonsByName",
+	            "singleLine": false
+	        }
+	    ],
+	    "displayName": "INTERNAL-AllZones",
+	    "groupType": "AvailabilityZone",
+	    "isStatic": false,
+	    "logicalOperator": "AND",
+	};
+
+	internalZonesGroupUuid = getInternalGroupUuid("INTERNAL-AllZones", dto);
+	return internalZonesGroupUuid;
+});
+
+cm.set("hotAddMemoryGroupUuid", function() {
+	var name = "Virtual Machines by Hot Add Memory";
+	if (hotAddMemoryGroupUuid !== undefined) { return hotAddMemoryGroupUuid; }
+
+	var dto = cm.defaultGroupsByName.VimVMHotAddMem({ displayName: name });
+	hotAddMemoryGroupUuid = getInternalGroupUuid(name, dto);
+	return hotAddMemoryGroupUuid;
+});
+
+cm.set("hotAddCpuGroupUuid", function() {
+	var name = "Virtual Machines by Hot Add CPU";
+	if (hotAddCpuGroupUuid !== undefined) { return hotAddCpuGroupUuid; }
+
+	var dto = cm.defaultGroupsByName.VimVMHotAddCPU({ displayName: name });
+	hotAddCpuGroupUuid = getInternalGroupUuid(name, dto);
+	return hotAddCpuGroupUuid;
+});
+
+// =================================================================================
+
+function createGroup(newGroup) {
+	var createdGroup = null;
+	try {
+		createdGroup = client.createGroup(newGroup);
+	} catch(ex) {
+		if (ex.message.contains("- ALREADY_EXISTS: ")) {
+			var m = ex.message.match(/ids?:? \[([0-9]+)\]/);
+			if (m) {
+				try {
+					createdGroup = client.editGroup(m[1], newGroup);
+				} catch (ex2) {
+					error("   Error: failed to update group (REST API returned an error)");
+					printJson(ex2);
+				}
+			}
+		} else if (ex.message.contains("- NOT_FOUND: ")) {
+			var m2 = ex.message.match(/ids?:? \[([0-9]+)\]/);
+			if (m2) {
+				try {
+					createdGroup = client.getGroupByUuid(m2[1]);
+				} catch (ex3) {
+					error("   Error: failed to fetch group details (REST API returned an error)");
+					printJson(ex3);
+				}
+			}
+		}
+		if (createdGroup === null) {
+			error("   Error: failed to create group (REST API returned an error)");
+			printJson(ex);
+			return null;
+		}
+	}
+	return createdGroup;
+}
+
+
 // =================================================================================
 
 var copied = { };
 
-function copyStaticGroup(g, warn, ex) {
+function copyStaticGroup(g, allowDefer) {
 	g = _.deepClone(g);
 
-	var countMembers = g.groupType === "BusinessAccount";
+	var orgDisplayName = g.displayName;
+	var xlName = getXlGroupName(g);
 
-	if (warn) {
-		warning("   Warning: copying as a static group");
-		if (ex) {
-			println("            ("+ex.message+")");
-		}
-	} else {
-		printf("\n[%d of %d] Copy %v static group '%v' (%v)\n", groupNum, numGroups, parseInt(g.isCustom) ? "custom" : "system", g.displayName, g.groupType);
-		if (copied[g.uuid]) {
-			success("   Already copied once - skipping");
-			return;
-		}
+	var countMembers = lib.shouldCountMembers(g);
 
-		copied[g.uuid] = true;
+	printf("\n[%d of %d] Copy %v static group '%v' (%v)\n", groupNum, numGroups, parseInt(g.isCustom) ? "custom" : "system", g.displayName, g.groupType);
+	if (copied[g.uuid]) {
+		success("   Already copied once - skipping");
+		return;
+	}
+	copied[g.uuid] = true;
+
+	if (parseInt(g.isCustom) === 0 && g.discoveredBy) {
+		try {
+			var xlGroup = lib.findEntityInXl(classicDb, xlDb, nameMap, g);
+			if ((xlGroup.source || {}).uuid) {
+				success("   Success: system group already discovered by target probe[s]");
+				lib.saveGroupMapping(xlDb, g.uuid, xlGroup.uuid);
+				return;
+			}
+		} catch (ex) {
+			//
+		}
+	}
+
+	if (xlName !== lib.mapGroupName(orgDisplayName)) {
+		warning(sprintf("   Warning: renamed as '%s'", xlName));
 	}
 
 	// get the leaf types
 	var types = lib.getMemberTypes(classicDb, g.uuid);
 
 	if (types.length === 0) {
-//		if (parseInt(g.entitiesCount) === 0) {
 			types = [ g.groupType ];
-//		} else {
-//			error("   Error: cant determine member types - skipping");
-//			return;
-//		}
+	}
+
+	if (types.length === 2 && types[0] === "Group") {
+		types = [ types[1] ];
+	} else if (types.length === 2 && types[1] === "Group") {
+		types = [ types[10] ];
 	}
 
 	if (types.length > 1) {
@@ -156,151 +356,71 @@ function copyStaticGroup(g, warn, ex) {
 	}
 
 	g.actualGroupType = types[0];
-	var xlGroupType = mapGroupClass(g.actualGroupType);
+	var xlGroupType = lib.mapGroupClass(g.actualGroupType);
 
 	var memberUuids = [ ];	// The UUIDs of member entities, in XL.
-	var numSkipped = 0;		// The number we skipped because they were not found or unresolvably duplicated.
 
 	// Get the members of the group in classic.
 	var sql = `
-		select e.className, e.displayName, e.remoteId, e.parentDisplayName, e.uuid, count(*) n, e.json
+		-- select e.className, e.displayName, e.remoteId, e.parentDisplayName, e.uuid, count(*) n, e.json
+		select e.className, e.displayName, e.remoteId, e.parentDisplayName, e.uuid, 1 n, e.json
 		from group_members m, entities e
 		where m.groupUuid = ?
 		and e.uuid == m.entityUuid
-		group by e.className, e.displayName, e.remoteId, e.parentDisplayName
+		-- group by e.className, e.displayName, e.remoteId, e.parentDisplayName
 	`;
 
-	var numSkippedGuestLoads = 0;
-	var numNoTargets = 0;
+	var numNoTargets = 0;		// num members skipped because the target hasnt been migrated
+	var numUnsupported = 0;		// num members skipped because they are not supported in XL
+	var numSkipped = 0;			// num members skipped - for any reason
 
-	classicDb.query(sql, [ g.uuid ]).forEach(m => {
+	var members = classicDb.query(sql, [ g.uuid ]);
+
+	var warnings = [ ];
+	var defer = false;
+
+	members.forEach(m => {
+		if (allowDefer && deferredStaticGroups.map(x => { return x.uuid; }).contains(m.uuid)) {
+			defer = true;
+			return;
+		}
+
 		var cn = m.className;
 		var dn = m.displayName;
 		var obj = JSON.parse(m.json);
 
-		if (groupClassRe.test(cn)) {
-			dn = mapGroupName(dn);
-		}
-
-		// for AWS, AZURE and GCP: the remote Ids are differently formatted between classic and XL.
-		// -- classic ones look like : azure::VM::d653a2fe-8a55-4796-a25a-a32dcfea4d43
-		// -- XL ones look like      : d653a2fe-8a55-4796-a25a-a32dcfea4d43
-
-		var rid1 = m.remoteId || "";	// orignal, undoctored remote ID
-		var rid2 = m.remoteId || "";	// potentially cleaned up remote ID
-
-		if (rid2.match(/^(aws|azure|gcp)::/)) {
-			var r = rid2.split(/::/);
-			rid2 = r[r.length-1];
-		}
-
-		var pn = m.parentDisplayName || "";
-
-		var n = parseInt(m.n);
-		if (parseInt(n) !== 1) {
-			if (cn === "Application" && dn.match(/^GuestLoad *\[.*?\]$/)) {
-				numSkippedGuestLoads += 1;
-			} else {
-				warning(sprintf("   Warning: duplicate rows for '%v::%v'%v", cn, dn, rid1 ? (" ("+rid1+")") : ""));
-			}
+		try {
+			var m2 = lib.findEntityInXl(classicDb, xlDb, nameMap, m);
+			memberUuids.push(m2.uuid);
+		} catch (ex) {
 			numSkipped += 1;
-		} else {
-			var uuids = [ ];
-			var xlClassName = mapGroupClass(cn);
-
-			// WMI applications have no key in common between XL and classic so we need to resort to parsing out the display name.
-			if (cn === "Application" && (obj.discoveredBy || {}).type === "WMI" && obj.displayName.hasSuffix("["+obj.discoveredBy.name+"]")) {
-				var vmName = obj.discoveredBy.name;
-				var appName = obj.displayName.trimSuffix("["+obj.discoveredBy.name+"]").trimSpace();
-				xlDb.query("select uuid, json from entities where displayName like (? || ' ' || ? || ' [%]')", [appName, vmName]).forEach(row => {
-					var obj2 = JSON.parse(row.json);
-					if (
-						(obj2.discoveredBy || {}).type === "WMI" &&
-						obj2.discoveredBy.name === vmName &&
-						obj2.className === "ApplicationComponent" &&
-						(obj2.providers || []).length === 1 &&
-						obj2.providers[0].displayName === vmName
-					) {
-						uuids.push(obj2.uuid);
-					}
-				});
-			} else {
-				// Find the matching member in XL
-				var sql2 = `
-					select uuid, json
-					from entities
-					where className = ?
-					and (displayName = ? or className in ("ApplicationComponent", "DatabaseServer"))
-					and (? = "" or parentDisplayName = ?)
-				`;
-
-				xlDb.query(sql2, [ xlClassName, dn, pn, pn ]).filter(row => {
-					if (!rid1) { return true; }
-					var rec = JSON.parse(row.json);
-
-					if (rec.remoteId === rid1 || rec.remoteId === rid2) { return true; }
-
-					var accepted = false;
-					_.keys(rec.vendorIds || {}).forEach(k => {
-						if (rec.vendorIds[k] === rid1 || rec.vendorIds[k] === rid2) {
-							accepted = true;
-						}
-					});
-					return accepted;
-				}).forEach(row => {
-					uuids.push(row.uuid);
-				});
+			warnings.push(sprintf("   Warning: %s", ex.message));
+			if (ex.noTarget) {
+				numNoTargets += 1;
 			}
-
-			// Not found? Try another way - this works with Nutanix StorageControllers (maybe more)
-			// We look for an XL record with:
-			//	remoteId = classic.uuid
-			//	displayName is a substring of the classic displayName
-			if (uuids.length === 0) {
-				xlDb.query(`
-					select uuid
-					from entities
-					where className = ?
-					and ? like ('%'||displayName||'%') and remoteId = ?
-					and remoteId <> ""
-				`, [m.className, m.displayName, m.uuid]).forEach(row2 => {
-					uuids.push(row2.uuid);
-				});
-			}
-
-			if (uuids.length > 1) {
-				warning(sprintf("   Warning: multiple entities '%v::%v'%v found", cn, dn, rid2 ? " ("+rid2+")" : ""));
-				numSkipped += 1;
-			} else if (uuids.length === 0) {
-				if (cn === "Application" && dn.match(/^GuestLoad *\[.*?\]$/)) {
-					numSkippedGuestLoads += 1;
-				} else {
-					if (isFromMissingTarget(obj)) {
-						warning(sprintf("   Warning: Entity '%v::%v' not discovered (target not migrated)", cn, dn));
-						numNoTargets += 1;
-					} else {
-						warning(sprintf("   Warning: no entity '%v::%v'%v found", cn, dn, rid2 ? " ("+rid2+")" : ""));
-					}
-				}
-				numSkipped += 1;
-			} else {
-				memberUuids.push(uuids[0]);
+			if (ex.unsupported) {
+				numUnsupported += 1;
 			}
 		}
 	});
 
-	if (numSkippedGuestLoads > 0) {
-		warning(sprintf("   Warning: %d 'GuestLoad' dummy application entities skipped (not exposed in XL)", numSkippedGuestLoads));
+	if (defer) {
+		deferredStaticGroups.push(g);
+		warning2(sprintf("   Deferred: depends on one or more deferred subgroups"));
+		return;
 	}
 
+	warnings.sort();
+	warnings.forEach(w => { warning(w); });
+
 	var n = countMembers ? parseInt(g.membersCount) : parseInt(g.entitiesCount);
-	if (n > 0 && (numNoTargets + numSkippedGuestLoads) >= n) {
+	if (n > 0 && (numNoTargets +  numUnsupported) >= n) {
 		if (n === numNoTargets) {
-			warning("   Warning: ALL expected members depend on targets that have not been discovered - group skipped.");
-		} else if (n === numSkippedGuestLoads) {
-			warning("   Warning: ALL expected members are 'GuestLoads' (not supported in XL) - group skipped.");
+			error("   Skipped: ALL expected members depend on targets that have not been discovered - group skipped.");
+		} else if (n === numUnsupported) {
+			error("   Skipped: ALL expected members are unsupported types in XL - group skipped.");
 		} else {
-			warning("   Warning: Group skipped");
+			error("   Skipped: Group skipped");
 		}
 		return;
 	}
@@ -326,7 +446,7 @@ function copyStaticGroup(g, warn, ex) {
 		saidEmpty = true;
 	}
 
-	var existing = lib.readGroup(xlDb, mapGroupName(g.displayName), xlGroupType);
+	var existing = lib.readGroup(xlDb, getXlGroupName(g), xlGroupType);
 	if (existing !== null) {
 		var m1 = memberUuids || [];
 		m1.sort();
@@ -336,12 +456,12 @@ function copyStaticGroup(g, warn, ex) {
 			if (existing.entitiesCount !== 0 || !saidEmpty) {
 				if (numSkipped > 0) {
 					if (existing.entitiesCount === 0) {
-						warning(sprintf("   Warning: group already exists but is missing %d entit%s",
+						success(sprintf("   Success: group already exists but is missing %d entit%s",
 							numSkipped,
 							numSkipped === 1 ? "y" : "ies"
 						));
 					} else {
-						warning(sprintf("   Warning: group already exists, is missing %d entit%s though the other %d match%s",
+						success(sprintf("   Success: group already exists, is missing %d entit%s though the other %d match%s",
 							numSkipped,
 							numSkipped === 1 ? "y" : "ies",
 							existing.entitiesCount,
@@ -349,9 +469,10 @@ function copyStaticGroup(g, warn, ex) {
 						));
 					}
 				} else {
+					var n2 = countMembers ? parseInt(g.membersCount) : parseInt(g.entitiesCount);
 					success(sprintf("   Success: group already exists and contains the expected %d entit%s",
-						parseInt(existing.entitiesCount),
-						existing.entitiesCount === 1 ? "y" : "ies"
+						n2,
+						n2 === 1 ? "y" : "ies"
 					));
 				}
 			}
@@ -360,10 +481,10 @@ function copyStaticGroup(g, warn, ex) {
 		}
 	}
 
-	var flag = existing === null ? "-create" : "-edit";
+//	var flag = existing === null ? "-create" : "-edit";
 	var name = g.displayName.replace(/\\/g, "/");
 	var groupDto = {
-	    "displayName": name,
+	    "displayName": xlName,
 	    "groupType": xlGroupType,
 	    "isStatic": true,
 	    "memberUuidList": memberUuids
@@ -371,15 +492,21 @@ function copyStaticGroup(g, warn, ex) {
 
 	var newGroup = null;
 	if (existing === null) {
-		try {
-			newGroup = client.createGroup(groupDto);
-		} catch (ex2) {
-			error("   Error: "+(ex2.message.replace(/^HTTP Status: [0-9]+ - (ALREADY_EXISTS: )?/, "")));
-			return;
-		}
+		newGroup = createGroup(groupDto);
 	} else {
 		groupDto.uuid = existing.uuid;
-		newGroup = client.editGroup(existing.uuid, groupDto);
+		try {
+			newGroup = client.editGroup(existing.uuid, groupDto);
+		} catch (ex2) {
+			error("   Error: failed to update group info (REST API returned an error)");
+			printJson(ex2);
+			return;
+		}
+	}
+
+	if (newGroup === null) {
+		error("   Error: group creation failed");
+		return;
 	}
 
 	saveGroup(xlDb, newGroup);
@@ -439,7 +566,7 @@ function mapCriteria(groupType, criteria) {
 
 	// first : does XL have the same criteria definition as Classic?
 	var classic = null;
-	var xlGroupType = mapGroupClass(groupType);
+	var xlGroupType = lib.mapGroupClass(groupType);
 
 	classicDb.query("select * from group_criteria where className = ? and filterType = ?", [groupType, criteria.filterType]).forEach(row => {
 		classic = row;
@@ -477,24 +604,17 @@ function mapCriteria(groupType, criteria) {
 				classicEntity = JSON.parse(row.json);
 			});
 			if (classicEntity === null) {
-				var e = new Error(sprintf("Cant find entity in classic with uuid '%v'", uuid));
-				e.createAsStatic = true;
+				var e = new Error(sprintf("Cant find filter entity with uuid '%v' in classic", uuid));
+				e.createAsStatic = false;
 				throw e;
 			}
-			xlDb.query("select json from entities where className = ? and displayName = ?", [classicEntity.className, classicEntity.displayName]).forEach(row => {
-				xlEntities.push(JSON.parse(row.json));
-			});
-			if (xlEntities.length < 1) {
-				var e2 = new Error(sprintf("Cant find entity '%v::%v' in XL", classicEntity.className, classicEntity.displayName));
-				e2.createAsStatic = true;
-				throw e2;
+			try {
+				var xlEntity = lib.findEntityInXl(classicDb, xlDb, nameMap, classicEntity);
+				mappedUuids.push(xlEntity.uuid);
+			} catch (ex) {
+				ex.createAsStatic = false;
+				throw ex;
 			}
-			if (xlEntities.length > 1) {
-				var e3 = new Error(sprintf("Multiple entities '%v::%v' in XL", classicEntity.className, classicEntity.displayName));
-				e3.createAsStatic = true;
-				throw e3;
-			}
-			mappedUuids.push(xlEntities[0].uuid);
 		});
 		criteria.expVal = mappedUuids.join("|");
 	}
@@ -503,12 +623,24 @@ function mapCriteria(groupType, criteria) {
 }
 
 
-
 function copyDynamicGroup(g, warn) {
 	printf("\n[%d of %d] Copy %v dynamic group '%v' (%v)\n", groupNum, numGroups, parseInt(g.isCustom) ? "custom" : "system", g.displayName, g.groupType);
 	if (copied[g.uuid]) {
 		success("   Already copied once - skipping");
 		return;
+	}
+
+	if (parseInt(g.isCustom) === 0 && g.discoveredBy) {
+		try {
+			var xlGroup = lib.findEntityInXl(classicDb, xlDb, nameMap, g);
+			if ((xlGroup.source || {}).uuid) {
+				success("   Success: system group already discovered by target probe[s]");
+				lib.saveGroupMapping(xlDb, g.uuid, xlGroup.uuid);
+				return;
+			}
+		} catch (ex) {
+			//
+		}
 	}
 
 	var found = false;
@@ -522,14 +654,21 @@ function copyDynamicGroup(g, warn) {
 		return;
 	}
 
-	var countMembers = g.groupType === "BusinessAccount";
+	var countMembers = lib.shouldCountMembers(g);
 
 	copied[g.uuid] = true;
 
+	var orgDisplayName = g.displayName;
+	var xlName = getXlGroupName(g);
+
+	if (xlName !== lib.mapGroupName(orgDisplayName)) {
+		warning(sprintf("   Warning: renamed as '%s'", xlName));
+	}
+
 	var newGroup = {
 		"className": g.className,
-		"displayName": g.displayName,
-		"groupType": mapGroupClass(g.groupType),
+		"displayName": xlName,
+		"groupType": lib.mapGroupClass(g.groupType),
 		"isStatic": g.isStatic,
 		"isCustom": true,
 		"logicalOperator": g.logicalOperator,
@@ -537,7 +676,31 @@ function copyDynamicGroup(g, warn) {
 	};
 
 	var errors = [ ];
-	var copiedAsStatic = false;
+
+	var doCopyAsStatic = function(mesg) {
+		var ex = new Error(mesg);
+		ex.createAsStatic = true;
+		var g2 = {
+			className: g.className,
+			cloudType: g.cloudType,
+			displayName: g.displayName,
+			isStatic: true,
+			groupType: g.groupType,
+			uuid: g.uuid,
+			entitiesCount: parseInt(g.entitiesCount),
+			membersCount: parseInt(g.membersCount),
+			reason: ex
+		};
+		warning2(sprintf("   Deferred: change to static group (%s)", ex.message));
+		deferredStaticGroups.push(g2);
+	};
+
+	if (g.isCustom && !g.isStatic && (!g.criteriaList || g.criteriaList.length === 0)) {
+		doCopyAsStatic("Custom dynamic group with no criteria defined");
+		return;
+	}
+
+	var stop = false;
 
 	(g.criteriaList || []).forEach(c => {
 		try {
@@ -545,18 +708,8 @@ function copyDynamicGroup(g, warn) {
 			newGroup.criteriaList.push(mapped);
 		} catch (ex) {
 			if (ex.createAsStatic) {
-				var g2 = {
-					className: g.className,
-					cloudType: g.cloudType,
-					displayName: g.displayName,
-					isStatic: true,
-					groupType: g.groupType,
-					uuid: g.uuid,
-					entitiesCount: parseInt(g.entitiesCount),
-					membersCount: parseInt(g.membersCount)
-				};
-				copyStaticGroup(g2, true, ex);
-				copiedAsStatic = true;
+				doCopyAsStatic(ex.message);
+				stop = true;
 				return;
 			} else {
 				errors.push(ex.message);
@@ -564,7 +717,7 @@ function copyDynamicGroup(g, warn) {
 		}
 	});
 
-	if (copiedAsStatic) {
+	if (stop) {
 		return;
 	}
 
@@ -576,55 +729,41 @@ function copyDynamicGroup(g, warn) {
 		return;
 	}
 
+	var createdGroup = createGroup(newGroup);
+	if (createGroup === null) { return; }
 
-	var rtn = client.tbutil("import dynamic group", true, [ "-j", JSON.stringify(newGroup) ]);
-	if (rtn.status === 0) {
-		var createdGroup = null;
-		try {
-			createdGroup = JSON.parse(rtn.out);
-		} catch(ex) {
-			error(sprintf("   Error: failed to create group (%v)", ex.message));
-			print(rtn.out); print(rtn.err);
-			return;
-		}
-
-		saveGroup(xlDb, createdGroup);
-		lib.saveGroupMapping(xlDb, g.uuid, createdGroup.uuid);
-		if (createdGroup.membersCount === 0) {
-			if (parseInt(g.membersCount) === 0) {
-				success("   Success: Empty group created (also empty in classic)");
-			} else {
-				if (countMembers) {
-					warning(sprintf("   Warning: Empty group (but %d member%s in classic).",
-						parseInt(g.membersCount),
-						parseInt(g.membersCount) === 1 ? "" : "s"
-					));
-				} else {
-					warning(sprintf("   Warning: Empty group (but %d entit%s in classic).",
-						parseInt(g.entitiesCount),
-						parseInt(g.entitiesCount) === 1 ? "y" : "ies"
-					));
-				}
-			}
+	saveGroup(xlDb, createdGroup);
+	lib.saveGroupMapping(xlDb, g.uuid, createdGroup.uuid);
+	if (createdGroup.membersCount === 0) {
+		if (parseInt(g.membersCount) === 0) {
+			success("   Success: Empty group created (also empty in classic)");
 		} else {
 			if (countMembers) {
-				success(sprintf("   Success: group created and now contains %d member%s (%v in classic)",
-					parseInt(createdGroup.membersCount),
-					parseInt(createdGroup.membersCount) === 1 ? "" : "s",
-					g.membersCount
+				warning(sprintf("   Warning: Empty group (but %d member%s in classic).",
+					parseInt(g.membersCount),
+					parseInt(g.membersCount) === 1 ? "" : "s"
 				));
 			} else {
-				success(sprintf("   Success: group created and now contains %d entit%s (%v in classic)",
-					parseInt(createdGroup.entitiesCount),
-					parseInt(createdGroup.entitiesCount) === 1 ? "y" : "ies",
-					g.entitiesCount
+				warning(sprintf("   Warning: Empty group (but %d entit%s in classic).",
+					parseInt(g.entitiesCount),
+					parseInt(g.entitiesCount) === 1 ? "y" : "ies"
 				));
 			}
 		}
 	} else {
-		error("   Error: failed to create group");
-		print(rtn.out); print(rtn.err);
-		return;
+		if (countMembers) {
+			success(sprintf("   Success: group created and now contains %d member%s (%v in classic)",
+				parseInt(createdGroup.membersCount),
+				parseInt(createdGroup.membersCount) === 1 ? "" : "s",
+				g.membersCount
+			));
+		} else {
+			success(sprintf("   Success: group created and now contains %d entit%s (%v in classic)",
+				parseInt(createdGroup.entitiesCount),
+				parseInt(createdGroup.entitiesCount) === 1 ? "y" : "ies",
+				g.entitiesCount
+			));
+		}
 	}
 }
 
@@ -632,28 +771,45 @@ function copyDynamicGroup(g, warn) {
 var showNote1 = false;
 
 function checkStaticGroupExists(g) {
-	var xlName = mapGroupName(g.displayName);
-	var xlType = mapGroupClass(g.groupType);
+	var orgDisplayName = g.displayName;
+	var xlName = getXlGroupName(g);
+	var xlType = lib.mapGroupClass(g.groupType);
 
-	var countMembers = g.groupType === "BusinessAccount";
+	var countMembers = lib.shouldCountMembers(g);
 
-	printf("\n[%d of %d] Check %v group '%v' (%v) exists\n", groupNum, numGroups, parseInt(g.isCustom) ? "custom" : "system", xlName, g.groupType);
+	printf("\n[%d of %d] Check %v group '%v' (%v) exists\n", groupNum, numGroups, parseInt(g.isCustom) ? "custom" : "system", orgDisplayName, g.groupType);
 
-	var found = lib.readGroup(xlDb, xlName, xlType);
-	var entitiesCount = null;
-	if (!found) {
-		found = client.findByName(g.className, xlName, true);
-		if (found.length === 0) {
-			warning("   Warning: Group not present in XL (see note #1 at end).");
-			showNote1 = true;
-			return;
+	if (parseInt(g.isCustom) === 0 && g.discoveredBy) {
+		try {
+			var xlGroup = lib.findEntityInXl(classicDb, xlDb, nameMap, g);
+			if ((xlGroup.source || {}).uuid) {
+				success("   Success: system group already discovered by target probe[s]");
+				lib.saveGroupMapping(xlDb, g.uuid, xlGroup.uuid);
+				return;
+			}
+		} catch (ex) {
+			//
 		}
-		if (found.length > 1) {
-			warning("   Warning: Group name is duplicated in XL.");
-			return;
+	}
+
+	if (!checkGroupTarget(g)) {
+		return;
+	}
+
+	if (xlName !== lib.mapGroupName(orgDisplayName)) {
+		warning(sprintf("   Warning: renamed as '%s'", xlName));
+	}
+
+	var found = null;
+
+	try {
+		found = lib.findEntityInXl(classicDb, xlDb, nameMap, g);
+		if (lib.mapGroupName(g.displayName) !== lib.mapGroupName(found.displayName)) {
+			warning(sprintf("   Warning: Renamed to '%s'", found.displayName));
 		}
-		found = found[0];
-		saveGroup(xlDb, found);
+	} catch (ex) {
+		error("   Error: "+ex.message);
+		return;
 	}
 
 	lib.saveGroupMapping(xlDb, g.uuid, found.uuid);
@@ -718,10 +874,31 @@ function defaultGroupName(uuid) {
 function copyRelationalGroup(g) {
 	g = _.deepClone(g);
 
+	var countMembers = lib.shouldCountMembers(g);
+
+	var orgDisplayName = g.displayName;
+
 	var cat = (g.category || "").trimPrefix("GROUP-");
 	printf("\n[%d of %d] Migrate %v group '%v' (%v)\n", groupNum, numGroups, parseInt(g.isCustom) ? "custom" : "system", g.displayName, cat || g.groupType);
 	if (copied[g.uuid]) {
 		success("   Already copied once - skipping");
+		return;
+	}
+
+	if (parseInt(g.isCustom) === 0 && g.discoveredBy) {
+		try {
+			var xlGroup = lib.findEntityInXl(classicDb, xlDb, nameMap, g);
+			if ((xlGroup.source || {}).uuid) {
+				success("   Success: system group already discovered by target probe[s]");
+				lib.saveGroupMapping(xlDb, g.uuid, xlGroup.uuid);
+				return;
+			}
+		} catch (ex) {
+			//
+		}
+	}
+
+	if (!checkGroupTarget(g)) {
 		return;
 	}
 
@@ -732,37 +909,46 @@ function copyRelationalGroup(g) {
 		return;
 	}
 
-	var creator = cm.creatorMap[ cat ];
-
-	// if no creator found but this is one of the groups in defaultGroups.csv and it has a creator
-	// defined in the group-creation-map file - then apply it now.
-	if (creator === undefined) {
-		var name = defaultGroupName(g.uuid);
-		if (name !== null) {
-			creator = cm.defaultGroupsByName[ name.trimPrefix("GROUP-") ];
-		}
+	var creator = null;
+	var name = defaultGroupName(g.uuid);
+	if (name !== null) {
+		creator = cm.defaultGroupsByName[ name.trimPrefix("GROUP-") ];
 	}
 
-//	if (creator === undefined) {
-//		error(sprintf("   Error: group category %s not supported", cat));
-//		println(        "            (unsupported category)");
-//		return;
-//	}
+	if (!creator) {
+		creator = cm.creatorMap[ cat ];
+	}
 
 	if (creator === null || creator === undefined) {
-		warning(sprintf("   Warning: %s group changed to be STATIC", cat));
-		println(        "            (no dynamic group creator for this category)");
-		return copyStaticGroup(g, true);
+		warning2("   Deferred: change to static group (no suitable dynamic group filter exists)");
+		deferredStaticGroups.push(g);
+		return;
+	}
+
+	if (nameMap[g.uuid]) {
+		warning2("   Deferred: change to as static group (duplicate name in classic)");
+		deferredStaticGroups.push(g);
+		return;
 	}
 
 	var defn = null;
 	try {
 		defn = creator(g);
+		if (defn === null) {
+			warning2("   Deferred: change to static group (no suitable dynamic group filter exists)");
+			deferredStaticGroups.push(g);
+			return;
+		}
+		defn.displayName = getXlGroupName(g);
 	} catch (ex) {
 		if (_.isString(ex)) {
 			error("    Error: "+ex);
 			return;
 		}
+	}
+
+	if (lib.mapGroupName(defn.displayName) !== lib.mapGroupName(orgDisplayName)) {
+		warning(sprintf("   Warning: renamed as '%s'", defn.displayName));
 	}
 
 	var foundGroup = null;
@@ -778,32 +964,38 @@ function copyRelationalGroup(g) {
 		foundGroup.isStatic === defn.isStatic &&
 		criteriaMatch(foundGroup, defn)
 	) {
-		success("    Success: Group already exists and has expected settings");
+		success("   Success: Group already exists and has the expected settings");
 		return;
 	}
 
-	var rtn = client.tbutil("import dynamic group", true, [ "-j", JSON.stringify(defn) ]);
-	if (rtn.status === 0) {
-		var newGroup = null;
-		try {
-			newGroup = JSON.parse(rtn.out);
-		} catch (ex) {
-			error(sprintf("   Error: failed to create group (%v)", ex.message));
-			print(rtn.out); print(rtn.err);
-			return;
-		}
+	var newGroup = createGroup(defn);
+	if (newGroup === null) { return; }
 
-		saveGroup(xlDb, newGroup);
-		lib.saveGroupMapping(xlDb, g.uuid, newGroup.uuid);
-		if (newGroup.entitiesCount === 0) {
-			if (parseInt(g.entitiesCount) === 0) {
-				success("   Success: Empty group created (also empty in classic)");
+	saveGroup(xlDb, newGroup);
+	lib.saveGroupMapping(xlDb, g.uuid, newGroup.uuid);
+	if (newGroup.entitiesCount === 0) {
+		if (parseInt(g.entitiesCount) === 0) {
+			success("   Success: Empty group created (also empty in classic)");
+		} else {
+			if (countMembers) {
+				warning(sprintf("   Warning: Empty group created (but %d member%s in classic).",
+					parseInt(g.membersCount),
+					parseInt(g.membersCount) === 1 ? "" : "s"
+				));
 			} else {
 				warning(sprintf("   Warning: Empty group created (but %d entit%s in classic).",
 					parseInt(g.entitiesCount),
 					parseInt(g.entitiesCount) === 1 ? "y" : "ies"
 				));
 			}
+		}
+	} else {
+		if (countMembers) {
+			success(sprintf("   Success: group created and now contains %d member%s (%v in classic)",
+				parseInt(newGroup.membersCount),
+				parseInt(newGroup.membersCount) === 1 ? "" : "s",
+				g.membersCount
+			));
 		} else {
 			success(sprintf("   Success: group created and now contains %d entit%s (%v in classic)",
 				parseInt(newGroup.entitiesCount),
@@ -811,69 +1003,18 @@ function copyRelationalGroup(g) {
 				g.entitiesCount
 			));
 		}
-	} else {
-		error("   Error: failed to create group");
-		print(rtn.out); print(rtn.err);
-		return;
 	}
 }
-
 
 var sql = `select * from groups_plus where displayName not regexp ? order by order_ desc`;
 
 var groups = classicDb.query(sql, [ lib.nameMap.excluded_group_names_re ]);
 
-var groupCountByName = { };
-var duplicates = { };
-
-groups.forEach(g => {
-	var name = mapGroupName(g.displayName);
-	groupCountByName[name] = groupCountByName[name] || 0;
-	groupCountByName[name] += 1;
-	if (groupCountByName[name] > 1) {
-		duplicates[g.displayName] = true;
-	}
-});
+//==============================================================================================================
 
 var errorsAtStart = [ ];
 var cantMigrate = { };
-
-var names  = _.keys(groupCountByName);
-var groupCountByNames = { };
-names.forEach(name => {
-	var n = groupCountByName[name];
-	groupCountByNames[name.toLowerCase()] = groupCountByNames[name.toLowerCase()] || { };
-	groupCountByNames[name.toLowerCase()][name] = n;
-});
-
-names = _.keys(groupCountByNames);
-names.sort();
-var duplicatedGroupNames = { };
-
-names.forEach(name => {
-	var num = 0;
-	var counts = groupCountByNames[name];
-	_.keys(counts).forEach(name2 => { num += counts[name2]; });
-	if (num > 1) {
-		var shownName = _.keys(counts);
-		shownName.sort();
-		shownName = shownName[0];
-		errorsAtStart.push("");
-		errorsAtStart.push(sprintf("Error: group name '%s' is duplicated in Classic - Cant migrate", shownName));
-		var ng = parseInt(xlDb.query("select count(*) n from groups where lower(displayName) = lower(?)", [ mapGroupName(shownName) ])[0].n);
-		if (ng === 0) {
-			errorsAtStart.push("       (and there are no existing groups in XL with that name)");
-		} else {
-			errorsAtStart.push(sprintf("       (but %d existing groups%s that name in XL)", ng, ng > 1 ? "s have" : " has"));
-		}
-		_.keys(counts).forEach(name3 => { duplicatedGroupNames[name3] = true; });
-	}
-});
-
-groups = groups.filter(g => {
-	var name = mapGroupName(g.displayName);
-	return !duplicatedGroupNames[name];
-});
+var duplicates = { };
 
 groups.sort((a, b) => {
 	var aa = a.displayName.toLowerCase();
@@ -882,6 +1023,7 @@ groups.sort((a, b) => {
 	if (aa > bb) { return 1; }
 	return 0;
 });
+
 
 if (args_.i) {
 	// Uuids of groups that are used as scopes.
@@ -936,11 +1078,25 @@ if (args_.i) {
 	}
 
 	var rows = _.deepClone(groups);
+	var promptWidth = screenWidth - 40;
+
+	var pad = "";
+	for (var i=0; i<promptWidth; i+=1) { pad = pad + " "; }
+
+	var maxDnLen = 0;
 	rows.forEach(row => {
-		var dn = row.displayName;
-		if (dn.length < 60) {
-			dn = (dn + "                                                              ").left(60);
-		}
+		var dn = (nameMap[row.uuid] || row.displayName);
+		if (dn.length > maxDnLen) { maxDnLen = dn.length; }
+	});
+
+	if (maxDnLen < promptWidth) {
+		promptWidth = maxDnLen;
+	}
+
+	rows.forEach(row => {
+		var obj = JSON.parse(row.json);
+		var dn = (nameMap[row.uuid] || row.displayName).limitLength(promptWidth);
+		dn = (dn + pad).left(promptWidth);
 		var prompt = "";
 		if (row.groupType === "BusinessAccount") {
 			prompt = sprintf(
@@ -1048,10 +1204,10 @@ if (args_.i) {
 		}
 		throw ex;
 	}
-debugger;
+
 	preSelected = { };
 	selection.choices.forEach(c => {
-		preSelected[c.key] = c.selected || c.forced;
+		preSelected[c.key] = c.selected || c.forced || c.later;
 	});
 	classicDb.exec("replace into metadata values (?, ?)", [ "selected_groups", JSON.stringify(preSelected)]);
 
@@ -1076,6 +1232,15 @@ errorsAtStart.forEach(err => {
 });
 
 
+groups.sort((a, b) => {
+	var aa = sprintf("%04d %s", a.order_ ? parseInt(a.order) : 1000, a.displayName.toLowerCase());
+	var bb = sprintf("%04d %s", b.order_ ? parseInt(b.order) : 1000, b.displayName.toLowerCase());
+	if (aa < bb) { return -1; }
+	if (aa > bb) { return 1; }
+	return 0;
+});
+
+
 groups.forEach(g => {
 	var name = defaultGroupName(g.uuid);
 
@@ -1095,7 +1260,7 @@ groups.forEach(g => {
 groups.forEach(g => {
 	if (parseInt(g.isCustom) !== 0 && parseInt(g.isStatic) === 1 && !g.category) {
 		groupNum += 1;
-		copyStaticGroup(g, false);
+		copyStaticGroup(g, true);
 	} else if (parseInt(g.isCustom) === 0 && parseInt(g.isStatic) === 1 && !g.category) {
 		groupNum += 1;
 		checkStaticGroupExists(g);
@@ -1110,6 +1275,20 @@ groups.forEach(g => {
 	}
 });
 
+
+if (deferredStaticGroups.length > 0) {
+	println("");
+	println("=============================== Processing Deferred Groups ===============================");
+	printf(" %d dynamic or system groups need to be created as static\n", deferredStaticGroups.length);
+	println("==========================================================================================");
+	copied = { };
+	groupNum = 0;
+	numGroups = deferredStaticGroups.length;
+	deferredStaticGroups.forEach(g => {
+		groupNum += 1;
+		copyStaticGroup(g, false);
+	});
+}
 
 lib.saveMetaData(xlDb, "migrate_groups_end_time", "" + (new Date()));
 

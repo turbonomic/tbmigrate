@@ -13,7 +13,6 @@ var F = require("@/functions");
 
 function E(x) { return x || {}; }
 
-
 usage = function() {
 	println("");
 	println("Usage is:");
@@ -194,6 +193,49 @@ function targetDetailsMatch(name, type) {
 }
 
 
+// Work on fields that need to be cooked up without requiring a target-specific cook plugin.
+
+function autoCookFields(targetType, fieldsByName, classicFields, xlFields, classicDb, xlDb, xlType) {
+	// fields that should be renamed (if needed)..
+	var rename = lib.nameMap.rename_target_fields[targetType] || {};
+
+	_.keys(rename).forEach(classicName => {
+		var xlName = rename[classicName];
+		if (xlFields[xlName] && !xlFields[classicName] && !classicFields[xlName] && classicFields[classicName]) {
+			classicFields[xlName] = _.deepClone(classicFields[classicName]);
+			delete classicFields[classicName];
+
+			fieldsByName[xlName] = _.deepClone(fieldsByName[classicName]);
+			delete fieldsByName[classicName];
+			fieldsByName[xlName].name = xlName;
+		}
+	});
+
+	// Fields we can take the default value for, if needed.
+	(lib.nameMap.add_target_field_default || []).forEach(field => {
+		if (xlFields[field] && !classicFields[field] && xlFields[field].default !== undefined) {
+			classicFields[field] = _.deepClone(xlFields[field]);
+			classicFields[field].n = _.keys(classicFields).length;
+
+			// turn the field name into a display name.
+			// eg "secureProxy" becomes "Secure Proxy"
+			var dn = field.
+				replace(/[A-Z]/, x => { return " "+x; }).
+				replace(/^[a-z]/, x => { return x.toUpperCase(); }).
+				trimSpace();
+
+			fieldsByName[field] = {
+				displayName: dn,
+				isSecret: classicFields[field].secret,
+				valueType: classicFields[field].type,
+				name: field,
+				value: classicFields[field].default
+			};
+		}
+	});
+}
+
+
 var numMismatchedTargets = 0;
 
 classicDb.query("select distinct uuid, category, type, displayName, name, isScoped, json from targets order by category, type").forEach(row => {
@@ -297,7 +339,6 @@ classicDb.query("select distinct uuid, category, type, displayName, name, isScop
 
 	var n = 0;
 	var foundCategory = null;
-	var xlType = lib.nameMap.target_type_map[row.type] || row.type;
 
 	xlDb.query("select count(*) n, category from target_specs where type = ?", [xlType]).forEach(row => {
 		n = parseInt(row.n);
@@ -362,6 +403,8 @@ classicDb.query("select distinct uuid, category, type, displayName, name, isScop
 		choice.skipped = true;
 		return;
 	}
+
+	autoCookFields(row.type, fieldsByName, classicFields, xlFields, classicDb, xlDb, xlType);
 
 	var notInClassic = [ ];
 	_.keys(xlFields).forEach(x => {
@@ -560,6 +603,9 @@ targets.forEach(row => {
 		fieldsByName[f.name] = f;
 	});
 
+	println("");
+	titleOf(count, sprintf("%s::%s -- '%s'\n", foundCategory, xlType, row.displayName));
+
 	// If there is a target-specific cooker script defined, then use it now to convert
 	// the classic target fields to what XL expects.
 	try {
@@ -572,6 +618,8 @@ targets.forEach(row => {
 		error(ex.message);
 		return;
 	}
+
+	autoCookFields(row.type, fieldsByName, classicFields, xlFields, classicDb, xlDb, xlType);
 
 	// Get an ordered list of field names
 	var xlFieldNames = _.keys(xlFields);
@@ -615,8 +663,8 @@ targets.forEach(row => {
 		// has the DTO got any secret fields?
 		var hasEncryptedFields = false;
 
-		println("");
-		titleOf(count, sprintf("%s::%s -- '%s'\n", foundCategory, xlType, row.displayName));
+//		println("");
+//		titleOf(count, sprintf("%s::%s -- '%s'\n", foundCategory, xlType, row.displayName));
 
 		// Fill out the inputFields of the DTO
 
@@ -713,7 +761,7 @@ targets.forEach(row => {
 				if (rtn.status === 0) {
 					newTarget = JSON.parse(rtn.out);
 				} else {
-					exception = rtn;
+					exception = new Error(rtn.err);
 				}
 			} catch (ex) {
 				exception = ex;
@@ -728,7 +776,6 @@ targets.forEach(row => {
 					var t = client.getTarget(newTarget.uuid);
 					if (t.status.toLowerCase() !== "validating") {
 						newTarget = t;
-						println("-- Done");
 						break;
 					}
 				} catch (ex) {
@@ -737,7 +784,6 @@ targets.forEach(row => {
 				}
 			}
 		}
-
 
 		client.setTimeout("0");
 
@@ -834,7 +880,6 @@ targets.forEach(row => {
 		}
 	}
 });
-
 
 if (!args_["include-scoped-targets"] && getenv("TBMIGRATE_MENU") !== "true") {
 	if (numSkippedScoped > 0) {
