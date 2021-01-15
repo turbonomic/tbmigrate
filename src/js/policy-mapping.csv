@@ -236,6 +236,7 @@ Storage,storagesettingsmanager,Storage Settings,capacity_STProvisioned,Storage O
 Storage,storagesettingsmanager,Storage Settings,datastoreBrowsing,Datastore Browsing,# This is now in the target definition,,,,
 Storage,storagesettingsmanager,Storage Settings,ignoreDirectory,Directories to ignore,storagesettingsmanager,Storage Settings,ignoreDirectories,Directories to ignore,
 Storage,storagesettingsmanager,Storage Settings,ignoreFiles,Files to ignore,storagesettingsmanager,Storage Settings,ignoreFiles,Files to ignore,
+Storage,storagesettingsmanager,Storage Settings,storageConstraints,Lock Vms To Datastores,! Lock VMs to Datastores – manual configuration required in XL,,,,
 StorageController,actionscriptmanager,Action Script Settings,approvalBackendProvisionSC,On Generation,# Action script manager migration is not supported in this release,,,,
 StorageController,actionscriptmanager,Action Script Settings,auditAfterExecProvisionSC,After execution,# Action script manager migration is not supported in this release,,,,
 StorageController,actionscriptmanager,Action Script Settings,auditOnGenProvisionSC,After execution,# Action script manager migration is not supported in this release,,,,

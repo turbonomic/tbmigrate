@@ -26,20 +26,30 @@ var xlDb = P.open("file:"+args_.remaining[1]+"?mode=rw");
 var nameMap = lib.nameMap;
 
 var policyMap_csv = _.deepClone(loadCsv("policy-mapping.csv"));
-// Strip the two head lines.
+// Strip the two header lines.
 policyMap_csv.shift();
 policyMap_csv.shift();
 
 var policyMap = { };
 policyMap_csv.forEach(row => {
 	var r5 = row[5].trimSpace();
-	if (r5 !== "" && !r5.hasPrefix("#")) {
+	if (r5 !== "") {
 		var key = row[0]+"|"+row[1]+"|"+row[3];
-		policyMap[key] = {
-			type: row[0],
-			manager: r5,
-			setting: row[7]
-		};
+		if (r5.hasPrefix("!")) {
+			policyMap[key] = {
+				warning: r5.trimPrefix("!").trimSpace()
+			};
+		} else if (r5.hasPrefix("#")) {
+			policyMap[key] = {
+				warning: "'" + row[2]+"/"+row[4]+"' - Setting has no equivalent in XL"
+			};
+		} else {
+			policyMap[key] = {
+				type: row[0],
+				manager: r5,
+				setting: row[7]
+			};
+		}
 	}
 });
 
@@ -418,7 +428,7 @@ function processCustomPolicies() {
 
 
 		println("");
-		colour("cyan", "bold"); printf("    Migrating '%v'\n", row.displayName); colour();
+		colour("cyan", "bold"); printf("    Migrating '%v' (%v)\n", row.displayName, policy.entityType); colour();
 
 		// Map the scopes
 
@@ -451,6 +461,10 @@ function processCustomPolicies() {
 				if (mapped === undefined) {
 					unMappedSettings += 1;
 					warning(sprintf("      Warning: No mapping found for '%v'", key.replace(/\|/g, "::")));
+					failed = true;
+				} else if (mapped.warning) {
+					unMappedSettings += 1;
+					warning(sprintf("      Warning: %s", mapped.warning));
 					failed = true;
 				} else {
 // TODO: check that the type the same (classic vs xl)

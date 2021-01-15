@@ -105,12 +105,11 @@ function copyTemplate(uuid, displayName, xlUuid) {
 			t2 = client.addTemplate(t);
 			success("    Created new template");
 		}
+		lib.saveTemplate(xlDb, t2);
+		lib.saveTemplateMapping(xlDb, uuid, t2.uuid);
 	} catch (ex) {
 		error("    Error: "+ex.message);
 	}
-
-	lib.saveTemplate(xlDb, t2);
-	lib.saveTemplateMapping(xlDb, uuid, t2.uuid);
 }
 
 
