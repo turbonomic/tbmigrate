@@ -1,8 +1,10 @@
-Version 3.12
-Tue  5 Jan 08:55:26 GMT 2021
+Version 3.13
+Mon  1 Feb 18:03:47 GMT 2021
 BINS_DIR = /home/turbo/tbmigrate/3.9/tbmigrate/bin/.exe
-commit f29b3ccba0df5addb13e80ea77714a6d5c0555a5 (HEAD -> tbmigrate-3.12)
+commit 6de836a9a2c6c3196248f7ae87f60ebb7a748e7b (HEAD -> 3.13, origin/3.13)
 Author: Chris Lowth <chris.lowth@turbonomic.com>
-Date:   Tue Jan 5 08:54:47 2021 +0000
+Date:   Mon Feb 1 18:01:54 2021 +0000
 
-    Change wording of "Lock VMs to Datastores" warning from "not implemented" to "manual configuration required"
+    TbMigrate 3.13
+    
+    Fix to "migrate-groups.js" - to prevent an abort if "My Groups" group is used as a scope.

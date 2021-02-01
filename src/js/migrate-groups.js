@@ -730,7 +730,7 @@ function copyDynamicGroup(g, warn) {
 	}
 
 	var createdGroup = createGroup(newGroup);
-	if (createGroup === null) { return; }
+	if (createdGroup === null) { return; }
 
 	saveGroup(xlDb, createdGroup);
 	lib.saveGroupMapping(xlDb, g.uuid, createdGroup.uuid);
