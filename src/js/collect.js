@@ -1,5 +1,5 @@
 // jshint -W083, -W061
-/* globals title, bar, colour, warning, error */
+/* globals title, bar, colour, warning, error, hash */
 
 // Load up the needed libraries and plugins
 
@@ -69,7 +69,7 @@ var groupCategories = { };	// UUID->Category mapping for groups who are direct m
 var nameMap = { };
 
 var myGroupsByUuid = { };
-
+var myGroupsByName = { };
 
 // ====================================================================================
 // Helper functions
@@ -146,6 +146,23 @@ function needMembers(g) {
 	return rtn;
 }
 
+
+function getGroupByUuid(uuid) {
+	if (allGroupsCollected) {
+		var rtn = null;
+		db.query("select json from xlGroups where uuid = ?", [uuid]).forEach(row => {
+			rtn = JSON.parse(row.json);
+		});
+		if (rtn === null) {
+			db.query("select json from xlGroups where displayName = ?", [uuid]).forEach(row => {
+				rtn = JSON.parse(row.json);
+			});
+		}
+		return rtn;
+	} else {
+		return client.getGroupByNameOrUuid(uuid);
+	}
+}
 
 function isDefaultGroupThatThrowsError(uuid) {
 	var iname = defaultGroupUuids[uuid];
@@ -383,12 +400,18 @@ targets.filter(t => { return !derivedTargets[t.uuid]; }).forEach(t => {
 
 	(t.inputFields || []).forEach( field => {
 		if (field.valueType === "GROUP_SCOPE") {
-			neededGroups[field.value] = [ "targetScope", field.value];
+			var g = null;
+			try {
+				g = client.getGroupByNameOrUuid(field.value);
+			} catch(ex) { }
 
-			targetUuidsByScopeUuid[field.value] = targetUuidsByScopeUuid[field.value] || {};
-			targetUuidsByScopeUuid[field.value][t.uuid] = true;
+			var key = g ? g.uuid : field.value;
+			neededGroups[key] = [ "targetScope", t.uuid ];
 
-			lib.saveTargetScope(db, t.uuid, field.name, field.value, null);
+			targetUuidsByScopeUuid[key] = targetUuidsByScopeUuid[key] || {};
+			targetUuidsByScopeUuid[key][t.uuid] = true;
+
+			lib.saveTargetScope(db, t.uuid, field.name, key, null);
 		}
 	});
 
@@ -494,13 +517,12 @@ if (checkDiscoveryState) {
 
 		lib.createGroupTables(db);
 
-		var opts = { types: "Group", environment_type: "HYBRID", q: _.keys(groupPatterns).join("|") };
-		client.paginate("getSearchResults", opts, g => {
+		lib.getInstancesUsingQuery(client, "HYBRID", [ "Group" ], _.keys(groupPatterns).join("|"), g => {
 			print(".");
-//			println(g.displayName);
 			lib.saveXlGroup(db, g);
 		});
 		println("");
+
 		allGroupsCollected = true;
 
 		title("Checking target discovery state");
@@ -728,23 +750,12 @@ try {
 			print(".");
 			neededGroups[g.uuid] = [ "memberOfMyGroups" ];
 			myGroupsByUuid[g.uuid] = g;
+			myGroupsByName[g.displayName] = g;
 		}
 	});
 } catch(ex) { }
 
 var missingScopeUuids = { };
-
-function getGroupByUuid(uuid) {
-	if (allGroupsCollected) {
-		var rtn = null;
-		db.query("select json from xlGroups where uuid = ?", [uuid]).forEach(row => {
-			rtn = JSON.parse(row.json);
-		});
-		return rtn;
-	} else {
-		return client.getGroupByUuid(uuid);
-	}
-}
 
 var order = 0;
 while (true) {
@@ -758,6 +769,7 @@ while (true) {
 		n += 1;
 		bar();
 		var g = myGroupsByUuid[uuid];
+
 		try {
 			if (g) {
 				g.isCustom = true;
@@ -798,7 +810,7 @@ while (true) {
 			}
 		} catch (ex) {
 			cachedGroups[uuid] = true;
-			if (client.lastException().isNotFound) {
+			if (client.lastException().isNotFound || ex.message === "Group not found") {
 				missingScopeUuids[uuid] = true;
 			}
 			print("!");
@@ -815,8 +827,7 @@ while (true) {
 
 if (client.isXL()) {
 	hash();
-	var opts = { types: "Group,Cluster" };
-	client.paginate("getSearchResults", opts, g => {
+	lib.getInstancesOfType(client, [ "Group", "Cluster" ], g => {
 		var n = parseInt(db.query("select count(*) n from groups where uuid = ?", [g.uuid])[0].n);
 		if (n === 0) {
 			print(".");
@@ -826,14 +837,12 @@ if (client.isXL()) {
 
 	hash();
 	// Some entities have different naming conventions in classic and XL so we need them all :)
-	opts = { types: "ApplicationComponent,DatabaseServer" };
 	var n = 0;
-	client.paginate("getSearchResults", opts, e => {
+	lib.getInstancesOfType(client, [ "ApplicationComponent", "DatabaseServer" ], e => {
 		print(".");
 		lib.saveEntity(db, e);
 		n += 1;
 	});
-	// printf("<%d>\n", n);
 	println("");
 }
 
@@ -981,8 +990,7 @@ if (sourceDb !== null) {
 			qblocks.push(q);
 		}
 		qblocks.forEach(qblock => {
-			var opts = {q: "^(" + qblock.join("|") + ")$", types: mapGroupClass(className)};
-			client.paginate("getSearchResults", opts, e => {
+			lib.getInstancesUsingQuery(client, null, [ mapGroupClass(className) ], "^(" + qblock.join("|") + ")$", e => {
 				print(".");
 				lib.saveEntity(db, e);
 			});
@@ -1004,8 +1012,7 @@ if (sourceDb !== null) {
 		// mismatch - so get all of them from XL. A length mismatch is enough to check for because we've
 		// already tried to find the XL ones by their names in classic. If all matched then the length
 		// of the two lists would be the same.
-		var opts = { types: "StorageController" };
-		client.paginate("getSearchResults", opts, sc => {
+		lib.getInstancesOfType(client, [ "StorageController" ], sc => {
 			print(".");
 			lib.saveEntity(db, sc);
 		});
@@ -1024,6 +1031,8 @@ if (sourceDb !== null) {
 				foundUuid = row2.uuid;
 				how = "db";
 			});
+
+//printf("map group >> %s [%v]\n", row.displayName, foundUuid);
 
 			if (foundUuid === null) {
 				var found = client.findByName(row.className, mappedName);

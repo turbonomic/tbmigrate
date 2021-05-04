@@ -115,7 +115,9 @@
 
 		"AppDynamics": "simple-defaults-cooker.js",
 		"Dynatrace": "simple-defaults-cooker.js",
-		"Nutanix": "simple-defaults-cooker.js"
+		"Nutanix": "simple-defaults-cooker.js",
+		"CloudFoundry": "simple-defaults-cooker.js",
+		"JBoss": "jboss-cooker.js"
 	},
 
 	/*
@@ -165,10 +167,12 @@
 	//	"GCP Cost":	 			{ "proxy": "proxyHost", "port": "proxyPort", "proxyUser": "proxyUsername"},
 		"Pivotal Ops Manager":	{ "proxy": "proxyHost" },
 		"ServiceNow":			{ "proxyUser": "proxyUsername" },
-		"AppInsights":			{ "proxy": "proxyHost", "port": "proxyPort", "proxyUser": "proxyUsername"}
+		"AppInsights":			{ "proxy": "proxyHost", "port": "proxyPort", "proxyUser": "proxyUsername"},
+		"JBoss":                { "nameOrAddress": "targetEntities", "targetPort": "port" }
 	//	"Intersight":           { "proxy": "proxyHost" },
 	//	"Intersight UCS":       { "proxy": "proxyHost" },
 	//	"Intersight Hyperflex": { "proxy": "proxyHost" },
+//		"CloudFoundry":			{ "proxy": "proxyHost", "port": "proxyPort" }
 	},
 
 

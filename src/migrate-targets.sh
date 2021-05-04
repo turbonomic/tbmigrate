@@ -43,7 +43,7 @@ phase1() {
 	../bin/cleanlog "$logsdir/migrate-targets-1.log"
 
 	if [ "$stat" = 22 ]; then
-		touch ../data/.redo-collect-1
+		touch "$datadir/.redo-collect-1"
 	fi
 
 	return $stat

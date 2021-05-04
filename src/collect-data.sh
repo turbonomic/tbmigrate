@@ -18,7 +18,7 @@ option=""
 if [ "$1" = "-skip-passwords" ]; then
 	shift
 	option="-skip-passwords"
-elif [ ! -f data/.migrate-passwords ]; then
+elif [ ! -f "$datadir/.migrate-passwords" ]; then
 	option="-skip-passwords"
 fi
 
@@ -46,8 +46,7 @@ phase1() {
 		"$xl1_db" "$xl1_db"-work \
 		"$xl2_db" "$xl2_db"-work \
 		"$xl3_db" "$xl3_db"-work \
-		data/.redo-collect-1
-#		"$logsdir"/*.log*
+		"$datadir/.redo-collect-1"
 
 	echo "+---------------------------------------------------------------+"
 	echo "|                                                               |"

@@ -344,7 +344,7 @@ function mapScope(scope) {
 		var dcName = rtn.displayName.trimPrefix("PMs_");
 		var rtn2 = lib.readEntity(xlDb, "DataCenter", dcName);
 		if (rtn2 === null) {
-			rtn2 = client.findInstance("DataCenter", dcName);
+			rtn2 = lib.findInstance(client, "DataCenter", dcName);
 			if (rtn2 === null) {
 				warning(sprintf("      Warning: Cant find DC '%s' in XL", mapGroupName(dcName)));
 				scope.$NOT_FOUND_IN_XL = true;

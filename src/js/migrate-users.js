@@ -195,7 +195,7 @@ classicDb.query("select name, json from users").forEach(row => {
 				xlUuid = row.xlUuid;
 			});
 			if (xlUuid === null) {
-				warning(sprintf("    Warning: scope group '%s' not found", s.displayName));
+				warning(sprintf("    Warning: scope group '%s' not found", s.displayName || s.uuid));
 				scopeOk = false;
 			} else {
 				newScope.push( { uuid: xlUuid });

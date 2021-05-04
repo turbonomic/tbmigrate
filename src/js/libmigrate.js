@@ -935,6 +935,69 @@ exports.findEntityInXl = function(classicDb, xlDb, nameMap, e) {
 };
 
 // =====================================================================================
+
+exports.getInstancesOfType = function(client, types, func) {
+	var opts = { types: types.join(",") };
+	return client.paginate("getSearchResults", opts, func);
+};
+
+exports.getInstancesUsingQuery = function(client, envType, types, q, func) {
+	if (client._byNameCriteria === null) {
+		client._byNameCriteria = { };
+		var data = client.getGroupBuilderUsecases();
+		var classes = _.keys(data);
+		classes.forEach(t => {
+			data[t].criteria.forEach(c => {
+				if (c.filterType.hasSuffix("ByName")) {
+					client._byNameCriteria[t] = c.filterType;
+				}
+			});
+		});
+	}
+
+	var count = 0;
+
+	types.forEach(type => {
+		var filterType = client._byNameCriteria[type];
+		if (!filterType) {
+			throw new Error("getInstancesUsingQuery: unsupported type: "+type);
+		}
+
+		var filter = {
+			caseSensitive: true,
+			expType: "RXEQ",
+			expVal: q,
+			filterType: filterType
+		};
+
+		var body = {
+			criteriaList: [filter],
+			logicalOperator: "AND",
+			className: type
+		};
+
+		var opts = {
+			ascending: true,
+			disable_hateoas: true,
+			limit: 100,
+			order_by: "name"
+		};
+
+		count += client.paginate("getMembersBasedOnCriteria", opts, body, func);
+	});
+
+	return count;
+};
+
+exports.findInstance = function(client, type, name) {
+	var found = [ ];
+	this.getInstancesUsingQuery(client, null, [ type ], name. quoteRegexpMeta(true), e => {
+		found.push(e);
+	});
+	return found.length === 1 ? found[0] : null;
+};
+
+// =====================================================================================
 // Define some global functions.
 
 // jshint -W117, -W020

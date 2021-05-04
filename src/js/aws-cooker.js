@@ -1,6 +1,6 @@
 // Change the contents of fieldsByName and classicFields to make what XL expects ...
 
-exports.cook = function(fieldsByName, classicFields, xlFields, classicDb, xlDb) {
+exports.cook = function(fieldsByName, classicFields, xlFields, classicDb, xlDb, type) {
 	if (classicFields.iamRole.type === "STRING" && xlFields.iamRole.type === "BOOLEAN") {
 		fieldsByName.iamRole.valueType = "BOOLEAN";
 		fieldsByName.iamRole.displayName = "IAM Role";
@@ -25,4 +25,9 @@ exports.cook = function(fieldsByName, classicFields, xlFields, classicDb, xlDb) 
 			fieldsByName.iamRole.value = "true";
 		}
 	}
+
+	// patch up any remaining, missing, defaultable settings
+
+	var cooker = require("./simple-defaults-cooker.js");
+	cooker.cook(fieldsByName, classicFields, xlFields, classicDb, xlDb, type, true);
 };

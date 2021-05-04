@@ -205,9 +205,9 @@ while true; do
 done
 
 if [ "$yn" = y ]; then
-	touch data/.migrate-passwords
+	touch "$datadir/.migrate-passwords"
 else
-	rm -f data/.migrate-passwords
+	rm -f "$datadir/.migrate-passwords"
 fi
 
 echo ""

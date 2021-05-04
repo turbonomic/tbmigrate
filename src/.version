@@ -1,10 +1,8 @@
-Version 3.13
-Mon  1 Feb 18:03:47 GMT 2021
+Version 3.14
+Fri 30 Apr 17:37:40 BST 2021
 BINS_DIR = /home/turbo/tbmigrate/3.9/tbmigrate/bin/.exe
-commit 6de836a9a2c6c3196248f7ae87f60ebb7a748e7b (HEAD -> 3.13, origin/3.13)
+commit 5033ff25538925f18d4f1e59f7ab5e9d0681acc0 (HEAD -> fix-8.1.4-issue, origin/fix-8.1.4-issue)
 Author: Chris Lowth <chris.lowth@turbonomic.com>
-Date:   Mon Feb 1 18:01:54 2021 +0000
+Date:   Fri Apr 30 17:36:49 2021 +0100
 
-    TbMigrate 3.13
-    
-    Fix to "migrate-groups.js" - to prevent an abort if "My Groups" group is used as a scope.
+    Correction to earlier commit comment: This is version 3.14 (not 3.13)

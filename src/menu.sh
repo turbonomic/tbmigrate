@@ -20,9 +20,25 @@ if [ "$TERM" = "xterm" ]; then
 	export TERM=xterm-256color
 fi
 
+. ./.env
+
+savedcreds="$HOME/tbmigrate-tbutil-credentials.json"
+if [ -f "$savedcreds" ] && [ ! -f "$datadir/tbutil-credentials.json" ]; then
+	echo -n "Use $savedcreds (y/n)?"
+	read yn || exit 1
+	if [ "$yn" = "y" ]; then
+		mkdir -p "$datadir"
+		cp "$savedcreds" "$datadir/tbutil-credentials.json"
+		touch "$classic_db" "$xl1_db" "$xl2_db" "$xl3_db"
+		touch "$datadir/.migrate-passwords"
+		echo collecting xl search criteria ...
+		./bin/tbutil "$xl_cred" get /search/criteria > "$datadir"/xl-search-criteria.json
+	fi
+fi
+
 productName() {
-	nCisco=`sqlite3 data/classic.db 'select * from metadata where name = "version"' 2>&1 | fgrep -ic "cisco workload optimization manager"`
-	nTurbo=`sqlite3 data/classic.db 'select * from metadata where name = "version"' 2>&1 | fgrep -ic "turbonomic operations manager"`
+	nCisco=`sqlite3 "$classic_db" 'select * from metadata where name = "version"' 2>&1 | fgrep -ic "cisco workload optimization manager"`
+	nTurbo=`sqlite3 "$classic_db" 'select * from metadata where name = "version"' 2>&1 | fgrep -ic "turbonomic operations manager"`
 	if [ $nCisco = 1 ] && [ $nTurbo = 0 ]; then
 		echo CWOM
 		return
@@ -52,8 +68,6 @@ viewlog() {
 		more -d "$1"
 	fi
 }
-
-. ./.env
 
 while : ; do
 	clear

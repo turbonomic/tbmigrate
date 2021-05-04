@@ -200,14 +200,18 @@ function autoCookFields(targetType, fieldsByName, classicFields, xlFields, class
 	var rename = lib.nameMap.rename_target_fields[targetType] || {};
 
 	_.keys(rename).forEach(classicName => {
-		var xlName = rename[classicName];
-		if (xlFields[xlName] && !xlFields[classicName] && !classicFields[xlName] && classicFields[classicName]) {
-			classicFields[xlName] = _.deepClone(classicFields[classicName]);
-			delete classicFields[classicName];
-
-			fieldsByName[xlName] = _.deepClone(fieldsByName[classicName]);
+		var changed = false;
+		_.flatten([rename[classicName]]).forEach(xlName => {
+			if (xlFields[xlName] && !xlFields[classicName] && !classicFields[xlName] && classicFields[classicName]) {
+				classicFields[xlName] = _.deepClone(classicFields[classicName]);
+				fieldsByName[xlName] = _.deepClone(fieldsByName[classicName]);
+				fieldsByName[xlName].name = xlName;
+				changed = true;
+			}
+		});
+		if (changed) {
 			delete fieldsByName[classicName];
-			fieldsByName[xlName].name = xlName;
+			delete classicFields[classicName];
 		}
 	});
 
@@ -323,17 +327,6 @@ classicDb.query("select distinct uuid, category, type, displayName, name, isScop
 		return;
 	}
 
-//	if (parseInt(row.isScoped) === 1 && !args_["include-scoped-targets"]) {
-//		nSkipped += 1;
-//		numSkippedScoped += 1;
-//		choice.message = "[orange::b]MIGRATE LATER[-::-] - Target is scoped (the opportunity to migrate it comes AFTER groups are migrated)";
-//		choice.selected = false;
-//		choice.skipped = true;
-//		choice.exclude = false;
-//		choice.later = true;
-//		return;
-//	}
-
 	var classicTarget = JSON.parse(row.json);
 	var classicFields = getTargetFields(classicDb, row.category, row.type);
 
@@ -424,13 +417,8 @@ classicDb.query("select distinct uuid, category, type, displayName, name, isScop
 		choice.skipped = true;
 		return;
 	}
-
-//	selection.choices.push(choice);
-//	targets.push(row);
 });
 
-// selection.choices = selection.choices.filter(c => { return c.exclude ? false : true; });
-// targets = targets.filter(t => { return t.$EXCLUDE ? false : true; });
 
 if (args_["count-only"]) {
 	var count = 0;
@@ -606,6 +594,10 @@ targets.forEach(row => {
 	println("");
 	titleOf(count, sprintf("%s::%s -- '%s'\n", foundCategory, xlType, row.displayName));
 
+	var autoCookFunc = function() {
+		autoCookFields(row.type, fieldsByName, classicFields, xlFields, classicDb, xlDb, xlType);
+	};
+
 	// If there is a target-specific cooker script defined, then use it now to convert
 	// the classic target fields to what XL expects.
 	try {
@@ -619,7 +611,7 @@ targets.forEach(row => {
 		return;
 	}
 
-	autoCookFields(row.type, fieldsByName, classicFields, xlFields, classicDb, xlDb, xlType);
+	autoCookFunc();
 
 	// Get an ordered list of field names
 	var xlFieldNames = _.keys(xlFields);

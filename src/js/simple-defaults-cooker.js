@@ -16,6 +16,13 @@ exports.cook = function(fieldsByName, classicFields, xlFields, classicDb, xlDb, 
 							n: _.keys(classicFields).length,
 							type: fld.valueType
 						};
+					} else if (fld.name === f && fld.isMandatory === false) {
+						fld.value = null;
+						fieldsByName[f] = fld;
+						classicFields[f] = {
+							n: _.keys(classicFields).length,
+							type: fld.valueType
+						};
 					}
 				});
 			}
@@ -31,8 +38,7 @@ exports.cook = function(fieldsByName, classicFields, xlFields, classicDb, xlDb, 
 		fieldsByName.address = fieldsByName.nameOrAddress;
 		fieldsByName.address.name = "address";
 		delete fieldsByName.nameOrAddress;
-
-		classicFields.address = classicFields.nameOrAddress;
+			classicFields.address = classicFields.nameOrAddress;
 		delete classicFields.nameOrAddress;
 	}
 };
