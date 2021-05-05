@@ -4,13 +4,13 @@
 
 The documentation for this tool can be found in Appendix C of the Turbonomic 8.1.6 (or later) installation guide. See: http://docs.turbonomic.com
 
-The FAQ (Frequenty Asked Questions) document [can be read here](../master/FAQ.md).
+The FAQ (Frequenty Asked Questions) document [can be read here](../3.14/FAQ.md).
 
-Notes on reviewing the migration results [can be read here](../master/REVIEW.md).
+Notes on reviewing the migration results [can be read here](../3.14/REVIEW.md).
 
 # Downloading
 
-Please [follow this link](../master/DOWNLOAD.md) for information about downloading the latest version.
+Please [follow this link](../3.14/DOWNLOAD.md) for information about downloading the latest version.
 
 # Note
 
