@@ -1,0 +1,479 @@
+{
+    "sum2spec": {
+        "82779d2724935c3600ee747f82eede8f": {
+            "PHYSICAL_MACHINE": {
+                "compute": [
+                    "numOfCores",
+                    "cpuSpeed",
+                    "ioThroughputSize",
+                    "memorySize",
+                    "networkThroughputSize"
+                ],
+                "infrastructure": [
+                    "powerSize",
+                    "spaceSize",
+                    "coolingSize"
+                ]
+            },
+            "STORAGE": {
+                "storage": [
+                    "diskIops",
+                    "diskSize"
+                ]
+            },
+            "VIRTUAL_MACHINE": {
+                "compute": [
+                    "numOfCpu",
+                    "cpuSpeed",
+                    "cpuConsumedFactor",
+                    "memorySize",
+                    "memoryConsumedFactor",
+                    "ioThroughputConsumed",
+                    "networkThroughputConsumed",
+                    "ioThroughput",
+                    "networkThroughput"
+                ],
+                "storage": [
+                    "diskSize",
+                    "diskIopsConsumed",
+                    "diskConsumedFactor",
+                    "diskIops"
+                ]
+            }
+        },
+        "a63aebc1e5accc76e34b1218f8091776": {
+            "HCI_PHYSICAL_MACHINE": {
+                "compute": [
+                    "numOfCores",
+                    "cpuSpeed",
+                    "ioThroughputSize",
+                    "memorySize",
+                    "networkThroughputSize"
+                ],
+                "infrastructure": [
+                    "powerSize",
+                    "spaceSize",
+                    "coolingSize"
+                ],
+                "storage": [
+                    "storageAmount",
+                    "diskIops",
+                    "failuresToTolerate",
+                    "spaceReservationPct",
+                    "compressionRatio",
+                    "redundancyMethod",
+                    "isCompressionEnabled"
+                ]
+            },
+            "PHYSICAL_MACHINE": {
+                "compute": [
+                    "numOfCores",
+                    "cpuSpeed",
+                    "ioThroughputSize",
+                    "memorySize",
+                    "networkThroughputSize"
+                ],
+                "infrastructure": [
+                    "powerSize",
+                    "spaceSize",
+                    "coolingSize"
+                ],
+                "storage": [
+                    "storageAmount",
+                    "diskIops",
+                    "failuresToTolerate",
+                    "spaceReservationPct",
+                    "compressionRatio",
+                    "redundancyMethod",
+                    "isCompressionEnabled"
+                ]
+            },
+            "STORAGE": {
+                "storage": [
+                    "diskIops",
+                    "diskSize"
+                ]
+            },
+            "VIRTUAL_MACHINE": {
+                "compute": [
+                    "numOfCpu",
+                    "cpuSpeed",
+                    "cpuConsumedFactor",
+                    "memorySize",
+                    "memoryConsumedFactor",
+                    "ioThroughputConsumed",
+                    "networkThroughputConsumed",
+                    "ioThroughputSize",
+                    "networkThroughputSize",
+                    "ioThroughput",
+                    "networkThroughput"
+                ],
+                "storage": [
+                    "diskSize",
+                    "diskIopsConsumed",
+                    "diskConsumedFactor",
+                    "diskIops"
+                ]
+            }
+        },
+        "b2b7600f2095f94bcabb56c55689b57a": {
+            "HCI_PHYSICAL_MACHINE": {
+                "compute": [
+                    "numOfCores",
+                    "cpuSpeed",
+                    "ioThroughputSize",
+                    "memorySize",
+                    "networkThroughputSize"
+                ],
+                "infrastructure": [
+                    "powerSize",
+                    "spaceSize",
+                    "coolingSize"
+                ],
+                "storage": [
+                    "diskSize",
+                    "diskIops",
+                    "failuresToTolerate",
+                    "spaceReservationPct",
+                    "compressionRatio",
+                    "redundancyMethod",
+                    "isCompressionEnabled"
+                ]
+            },
+            "PHYSICAL_MACHINE": {
+                "compute": [
+                    "numOfCores",
+                    "cpuSpeed",
+                    "ioThroughputSize",
+                    "memorySize",
+                    "networkThroughputSize"
+                ],
+                "infrastructure": [
+                    "powerSize",
+                    "spaceSize",
+                    "coolingSize"
+                ]
+            },
+            "STORAGE": {
+                "storage": [
+                    "diskIops",
+                    "diskSize"
+                ]
+            },
+            "VIRTUAL_MACHINE": {
+                "compute": [
+                    "numOfCpu",
+                    "cpuSpeed",
+                    "cpuConsumedFactor",
+                    "memorySize",
+                    "memoryConsumedFactor",
+                    "ioThroughputConsumed",
+                    "networkThroughputConsumed",
+                    "ioThroughputSize",
+                    "networkThroughputSize",
+                    "ioThroughput",
+                    "networkThroughput"
+                ],
+                "storage": [
+                    "diskSize",
+                    "diskIopsConsumed",
+                    "diskConsumedFactor",
+                    "diskIops"
+                ]
+            }
+        },
+        "b73b752ecf8c12106a1d4d66e72f622f": {
+            "PHYSICAL_MACHINE": {
+                "compute": [
+                    "numOfCores",
+                    "cpuSpeed",
+                    "ioThroughputSize",
+                    "memorySize",
+                    "networkThroughputSize"
+                ],
+                "infrastructure": [
+                    "powerSize",
+                    "spaceSize",
+                    "coolingSize"
+                ],
+                "storage": [
+                    "storageAmount",
+                    "diskIops",
+                    "failuresToTolerate",
+                    "spaceReservationPct",
+                    "compressionRatio",
+                    "redundancyMethod",
+                    "isCompressionEnabled"
+                ]
+            },
+            "STORAGE": {
+                "storage": [
+                    "diskIops",
+                    "diskSize"
+                ]
+            },
+            "VIRTUAL_MACHINE": {
+                "compute": [
+                    "numOfCpu",
+                    "cpuSpeed",
+                    "cpuConsumedFactor",
+                    "memorySize",
+                    "memoryConsumedFactor",
+                    "ioThroughputConsumed",
+                    "networkThroughputConsumed",
+                    "ioThroughputSize",
+                    "networkThroughputSize",
+                    "ioThroughput",
+                    "networkThroughput"
+                ],
+                "storage": [
+                    "diskSize",
+                    "diskIopsConsumed",
+                    "diskConsumedFactor",
+                    "diskIops"
+                ]
+            }
+        },
+        "d4f6ba85b9b816de4c327d4134a47b13": {
+            "HCI_PHYSICAL_MACHINE": {
+                "compute": [
+                    "numOfCores",
+                    "cpuSpeed",
+                    "ioThroughputSize",
+                    "memorySize",
+                    "networkThroughputSize"
+                ],
+                "infrastructure": [
+                    "powerSize",
+                    "spaceSize",
+                    "coolingSize"
+                ],
+                "storage": [
+                    "diskSize",
+                    "diskIops",
+                    "failuresToTolerate",
+                    "spaceReservationPct",
+                    "compressionRatio",
+                    "redundancyMethod",
+                    "isCompressionEnabled"
+                ]
+            },
+            "PHYSICAL_MACHINE": {
+                "compute": [
+                    "numOfCores",
+                    "cpuSpeed",
+                    "ioThroughputSize",
+                    "memorySize",
+                    "networkThroughputSize"
+                ],
+                "infrastructure": [
+                    "powerSize",
+                    "spaceSize",
+                    "coolingSize"
+                ]
+            },
+            "STORAGE": {
+                "storage": [
+                    "diskIops",
+                    "diskSize"
+                ]
+            },
+            "VIRTUAL_MACHINE": {
+                "compute": [
+                    "numOfCpu",
+                    "cpuSpeed",
+                    "cpuConsumedFactor",
+                    "memorySize",
+                    "memoryConsumedFactor",
+                    "ioThroughputConsumed",
+                    "networkThroughputConsumed",
+                    "ioThroughputSize",
+                    "networkThroughputSize",
+                    "ioThroughput",
+                    "networkThroughput"
+                ],
+                "storage": [
+                    "diskSize",
+                    "diskConsumedFactor",
+                    "diskIops"
+                ]
+            }
+        },
+        "e2e36c24acd974cd846f4cd343551cfc": {
+            "HCI_PHYSICAL_MACHINE": {
+                "compute": [
+                    "numOfCores",
+                    "cpuSpeed",
+                    "ioThroughputSize",
+                    "memorySize",
+                    "networkThroughputSize"
+                ],
+                "infrastructure": [
+                    "powerSize",
+                    "spaceSize",
+                    "coolingSize"
+                ],
+                "storage": [
+                    "diskSize",
+                    "diskIops",
+                    "failuresToTolerate",
+                    "redundancyMethod"
+                ]
+            },
+            "PHYSICAL_MACHINE": {
+                "compute": [
+                    "numOfCores",
+                    "cpuSpeed",
+                    "ioThroughputSize",
+                    "memorySize",
+                    "networkThroughputSize"
+                ],
+                "infrastructure": [
+                    "powerSize",
+                    "spaceSize",
+                    "coolingSize"
+                ]
+            },
+            "STORAGE": {
+                "storage": [
+                    "diskIops",
+                    "diskSize"
+                ]
+            },
+            "VIRTUAL_MACHINE": {
+                "compute": [
+                    "numOfCpu",
+                    "cpuSpeed",
+                    "cpuConsumedFactor",
+                    "memorySize",
+                    "memoryConsumedFactor",
+                    "ioThroughputConsumed",
+                    "networkThroughputConsumed",
+                    "ioThroughputSize",
+                    "networkThroughputSize",
+                    "ioThroughput",
+                    "networkThroughput"
+                ],
+                "storage": [
+                    "diskSize",
+                    "diskConsumedFactor",
+                    "diskIops"
+                ]
+            }
+        },
+        "f9db0704122384201a704c6eaa892350": {
+            "PHYSICAL_MACHINE": {
+                "compute": [
+                    "numOfCores",
+                    "cpuSpeed",
+                    "ioThroughputSize",
+                    "memorySize",
+                    "networkThroughputSize"
+                ],
+                "infrastructure": [
+                    "powerSize",
+                    "spaceSize",
+                    "coolingSize"
+                ]
+            },
+            "STORAGE": {
+                "storage": [
+                    "diskIops",
+                    "diskSize"
+                ]
+            },
+            "VIRTUAL_MACHINE": {
+                "compute": [
+                    "numOfCpu",
+                    "cpuSpeed",
+                    "cpuConsumedFactor",
+                    "memorySize",
+                    "memoryConsumedFactor",
+                    "ioThroughputConsumed",
+                    "networkThroughputConsumed",
+                    "ioThroughputSize",
+                    "networkThroughputSize",
+                    "ioThroughput",
+                    "networkThroughput"
+                ],
+                "storage": [
+                    "diskSize",
+                    "diskIopsConsumed",
+                    "diskConsumedFactor",
+                    "diskIops"
+                ]
+            }
+        }
+    },
+    "ver2sum": {
+        "7.0.0": "82779d2724935c3600ee747f82eede8f",
+        "7.0.1": "82779d2724935c3600ee747f82eede8f",
+        "7.1.0": "82779d2724935c3600ee747f82eede8f",
+        "7.10.0": "82779d2724935c3600ee747f82eede8f",
+        "7.11.0": "82779d2724935c3600ee747f82eede8f",
+        "7.12.0": "82779d2724935c3600ee747f82eede8f",
+        "7.13.0": "82779d2724935c3600ee747f82eede8f",
+        "7.13.1": "82779d2724935c3600ee747f82eede8f",
+        "7.16.0": "82779d2724935c3600ee747f82eede8f",
+        "7.16.1": "82779d2724935c3600ee747f82eede8f",
+        "7.16.2": "82779d2724935c3600ee747f82eede8f",
+        "7.16.3": "82779d2724935c3600ee747f82eede8f",
+        "7.16.4": "82779d2724935c3600ee747f82eede8f",
+        "7.17.0": "82779d2724935c3600ee747f82eede8f",
+        "7.17.1": "82779d2724935c3600ee747f82eede8f",
+        "7.17.2": "82779d2724935c3600ee747f82eede8f",
+        "7.17.3": "82779d2724935c3600ee747f82eede8f",
+        "7.17.4": "82779d2724935c3600ee747f82eede8f",
+        "7.17.5": "82779d2724935c3600ee747f82eede8f",
+        "7.17.6": "82779d2724935c3600ee747f82eede8f",
+        "7.17.7": "82779d2724935c3600ee747f82eede8f",
+        "7.17.8": "82779d2724935c3600ee747f82eede8f",
+        "7.17.9": "82779d2724935c3600ee747f82eede8f",
+        "7.18.0": "82779d2724935c3600ee747f82eede8f",
+        "7.19.0": "82779d2724935c3600ee747f82eede8f",
+        "7.2.0": "82779d2724935c3600ee747f82eede8f",
+        "7.20.0": "82779d2724935c3600ee747f82eede8f",
+        "7.21.0": "f9db0704122384201a704c6eaa892350",
+        "7.21.1": "f9db0704122384201a704c6eaa892350",
+        "7.21.100": "f9db0704122384201a704c6eaa892350",
+        "7.21.2": "f9db0704122384201a704c6eaa892350",
+        "7.21.3": "f9db0704122384201a704c6eaa892350",
+        "7.21.4": "b73b752ecf8c12106a1d4d66e72f622f",
+        "7.21.5": "a63aebc1e5accc76e34b1218f8091776",
+        "7.22.0": "b2b7600f2095f94bcabb56c55689b57a",
+        "7.22.1": "b2b7600f2095f94bcabb56c55689b57a",
+        "7.22.10": "d4f6ba85b9b816de4c327d4134a47b13",
+        "7.22.11": "e2e36c24acd974cd846f4cd343551cfc",
+        "7.22.2": "b2b7600f2095f94bcabb56c55689b57a",
+        "7.22.3": "b2b7600f2095f94bcabb56c55689b57a",
+        "7.22.4": "d4f6ba85b9b816de4c327d4134a47b13",
+        "7.22.5": "d4f6ba85b9b816de4c327d4134a47b13",
+        "7.22.6": "d4f6ba85b9b816de4c327d4134a47b13",
+        "7.22.7": "d4f6ba85b9b816de4c327d4134a47b13",
+        "7.22.8": "d4f6ba85b9b816de4c327d4134a47b13",
+        "7.22.9": "d4f6ba85b9b816de4c327d4134a47b13",
+        "7.3.0": "82779d2724935c3600ee747f82eede8f",
+        "7.4.0": "82779d2724935c3600ee747f82eede8f",
+        "7.5.0": "82779d2724935c3600ee747f82eede8f",
+        "7.6.0": "82779d2724935c3600ee747f82eede8f",
+        "7.7.0": "82779d2724935c3600ee747f82eede8f",
+        "7.8.0": "82779d2724935c3600ee747f82eede8f",
+        "7.9.0": "82779d2724935c3600ee747f82eede8f",
+        "8.0.0": "d4f6ba85b9b816de4c327d4134a47b13",
+        "8.0.1": "d4f6ba85b9b816de4c327d4134a47b13",
+        "8.0.2": "d4f6ba85b9b816de4c327d4134a47b13",
+        "8.0.3": "d4f6ba85b9b816de4c327d4134a47b13",
+        "8.0.4": "d4f6ba85b9b816de4c327d4134a47b13",
+        "8.0.5": "e2e36c24acd974cd846f4cd343551cfc",
+        "8.0.6": "e2e36c24acd974cd846f4cd343551cfc",
+        "8.0.7": "e2e36c24acd974cd846f4cd343551cfc",
+        "8.1.0": "e2e36c24acd974cd846f4cd343551cfc",
+        "8.1.1": "e2e36c24acd974cd846f4cd343551cfc",
+        "8.1.2": "e2e36c24acd974cd846f4cd343551cfc",
+        "8.1.3": "e2e36c24acd974cd846f4cd343551cfc",
+        "8.1.4": "e2e36c24acd974cd846f4cd343551cfc",
+        "8.1.5": "e2e36c24acd974cd846f4cd343551cfc",
+        "8.1.6": "e2e36c24acd974cd846f4cd343551cfc",
+        "8.2.0": "e2e36c24acd974cd846f4cd343551cfc"
+    }
+}

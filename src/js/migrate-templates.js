@@ -16,10 +16,55 @@ var classicDb = P.open("file:"+args[0]+"?mode=rw");
 var xlDb = P.open("file:"+args[1]+"?mode=rw");
 var lib = require("./libmigrate");
 
+// The file read in here needs to be re-created by running dev-tools/get-template-specs.sh when new versions
+// of Turbonomic are released.
+var templateSpecs = loadJson("./template-specs.json");
+
 var nameMap = lib.nameMap;
 
-
 lib.disableAllActions(client, xlDb);
+
+
+// get the version of this XL
+var xlVersion = null;
+xlDb.query(`select json from metadata where name = "version"`).forEach(row => {
+	xlVersion = JSON.parse(row.json).branch;
+});
+
+
+// Get, and sort, all the versions listed in the templateSpecs file
+var versions = _.keys(templateSpecs.ver2sum);
+versions.push("999.999.999");
+
+function sortableVersion(ver) {
+	var f = ver.split(".");
+	return sprintf("%03d%03d%03d", f[0], f[1], f[2]);
+}
+versions.sort((a, b) => {
+	var aa = sortableVersion(a);
+	var bb = sortableVersion(b);
+	if (aa < bb) { return -1; }
+	if (aa > bb) { return 1; }
+	return 0;
+});
+
+
+// Identity the templateSpec version that best fits THIS XL. We do this by chosing the
+// known version just earlier than the target one.
+var bestFitVersion = null;
+if (versions.contains(xlVersion)) {
+	bestFitVersion = xlVersion;
+} else {
+	for (var i=1; i<versions.length; i+=1) {
+		if (sortableVersion(versions[i]) < sortableVersion(xlVersion) && sortableVersion(versions[i+1]) > sortableVersion(xlVersion)) {
+			bestFitVersion = versions[i];
+			break;
+		}
+	}
+}
+
+var sum = templateSpecs.ver2sum[bestFitVersion];
+var spec = templateSpecs.sum2spec[sum];
 
 
 // Given a template object from the CLASSIC instance, massage it to be compatible with XL.
@@ -42,30 +87,54 @@ function cleanupTemplate(t, verbose) {
 	delete t.uuid;
 	delete t.links;
 
+	// map the classname in the template DTO to that used in the spec file
+	var typeMap = {
+		"HCIPhysicalMachine": "HCI_PHYSICAL_MACHINE",
+		"PhysicalMachine": "PHYSICAL_MACHINE",
+		"VirtualMachine": "VIRTUAL_MACHINE",
+		"Storage": "STORAGE"
+	};
+
+	var x = spec[typeMap[cn]];
+
 	// Delete any template resource blocks that XL doesnt handle. Use the `excluded_template_resources`
 	// substructure of the configuration file for this.
 
-	(_.keys(nameMap.excluded_template_resources || {})).forEach(resGroup => {
-		if (t[resGroup] && t[resGroup].length === 1 && t[resGroup][0].stats) {
-			var statList = { };
-			var filtered = t[resGroup][0].stats.filter(r => {
-				var rtn = nameMap.excluded_template_resources[resGroup].indexOf(r.name) === -1;
-				statList[resGroup+"::"+r.name] = rtn;
-				return rtn;
-			});
-			var removed = [ ];
-			_.keys(statList).forEach(k => {
-				if (!statList[k]) {
-					removed.push(k);
-				}
-			});
-			if (removed.length > 0 && verbose) {
-				removed.sort();
-				warning(sprintf("    Warning: stripped unsupported field(s): %v", removed.join(", ")));
+	_.keys(t).filter(k => ( k.hasSuffix("Resources") )).forEach(r => {
+		var supported = x[r.trimSuffix("Resources")];
+		t[r].forEach(rr => {
+			var filteredStats = (rr.stats || []).filter(s => ( supported.contains(s.name) ));
+			var removedStats = (rr.stats || []).filter(s => ( !supported.contains(s.name) ));
+			rr.stats = filteredStats;
+			if (removedStats.length > 0 && verbose) {
+				var r = removedStats.map(s => ( s.name ));
+				r.sort();
+				warning(sprintf("    Warning: stripped unsupported field(s): %s", _.uniq(r).join(", ")));
 			}
-			t[resGroup][0].stats = filtered;
-		}
+		});
 	});
+
+//	(_.keys(nameMap.excluded_template_resources || {})).forEach(resGroup => {
+//		if (t[resGroup] && t[resGroup].length === 1 && t[resGroup][0].stats) {
+//			var statList = { };
+//			var filtered = t[resGroup][0].stats.filter(r => {
+//				var rtn = nameMap.excluded_template_resources[resGroup].indexOf(r.name) === -1;
+//				statList[resGroup+"::"+r.name] = rtn;
+//				return rtn;
+//			});
+//			var removed = [ ];
+//			_.keys(statList).forEach(k => {
+//				if (!statList[k]) {
+//					removed.push(k);
+//				}
+//			});
+//			if (removed.length > 0 && verbose) {
+//				removed.sort();
+//				warning(sprintf("    Warning: stripped unsupported field(s): %v", removed.join(", ")));
+//			}
+//			t[resGroup][0].stats = filtered;
+//		}
+//	});
 
 	t.displayName = dn;
 }
@@ -158,6 +227,7 @@ templates.forEach(t => {
 	title(sprintf("Copying %s template '%s'", className.trimSuffix("Profile"), displayName));
 
 	var t0 = JSON.parse(json);
+
 	cleanupTemplate(t0, false);
 
 	var count = countByXlName[t0.displayName];
