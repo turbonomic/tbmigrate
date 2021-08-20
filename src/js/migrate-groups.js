@@ -5,16 +5,20 @@
 /* jshint -W014, -W119, -W083, -W080 */
 /* globals warning, warning2, success, error, note */
 
+var lib = require("./libmigrate.js");
+var _classic = lib._classic;
+var _xl = lib._xl;
+
 var F = require("@/functions");
 
 usage = function() {
 	println("");
 	println("Usage is:");
 	println("");
-	println("  tbscript {xl-credentials} migrate-groups.js [options] {classic-db-file} {xl-db-file}");
+	printf ("  tbscript @xl migrate-groups.js [options] {%s-db-file} {%s-db-file}\n", _classic.toLowerCase(), _xl.toLowerCase());
 	println("");
 	println("  -i:                   Use interactive selector");
-	println("  -skip-scoped-targets: Skip groups that are discovered by scoped targets on classic");
+	printf ("  -skip-scoped-targets: Skip groups that are discovered by scoped targets on %s\n", _classic);
 	println("");
 	exit(2);
 };
@@ -26,7 +30,7 @@ if (args_.remaining.length !== 2) {
 }
 
 if (!client.isXL()) {
-	woops("This isnt an XL instance");
+	woops("This isnt an "+_xl+" instance");
 }
 
 var userInfo = client.http.get("/users/me", { });
@@ -38,7 +42,6 @@ var P = plugin("sqlite3-plugin");
 var classicDb = P.open("file:"+args_.remaining[0]+"?mode=rw");
 var xlDb = P.open("file:"+args_.remaining[1]+"?mode=rw");
 
-var lib = require("./libmigrate.js");
 var cm = require("./group-creation-map.js");
 cm.set("lib", lib);
 
@@ -136,6 +139,10 @@ function checkGroupTarget(g) {
 			});
 		}
 
+		if (targetName === null) {
+			try { targetName = JSON.parse(g.json).source.displayName; } catch (ex) { }
+		}
+
 		if (targetName !== null) {
 			xlDb.query("select * from targets where name = ?", [targetName]).forEach(row => {
 				targetRow = row;
@@ -183,10 +190,10 @@ function getInternalGroupUuid(name, dto) {
 		return newGroup.uuid;
 	} catch (ex) {
 		try {
-			var newGroup = client.findByName("Group", name);
-			if (newGroup) {
-				lib.saveGroup(xlDb, newGroup, -1, [""]);
-				return newGroup.uuid;
+			var newGroup2 = client.findByName("Group", name);
+			if (newGroup2) {
+				lib.saveGroup(xlDb, newGroup2, -1, [""]);
+				return newGroup2.uuid;
 			} else {
 				return null;
 			}
@@ -231,7 +238,7 @@ cm.set("internalZonesGroupUuid", function() {
 	            "caseSensitive": false,
 	            "expType": "RXEQ",
 	            "expVal": ".*",
-	            "filterType": "zonsByName",
+	            "filterType": "zonsByName",	// This is not a typo (at least: up to 8.0.4). see "GET /search/criteria"
 	            "singleLine": false
 	        }
 	    ],
@@ -266,10 +273,26 @@ cm.set("hotAddCpuGroupUuid", function() {
 // =================================================================================
 
 function createGroup(newGroup) {
+	function groupExists() {
+		var found = client.findByName("Group", newGroup.displayName, true, true).
+			filter(g => ( g.groupType === newGroup.groupType ));
+		return found.length > 0 ? found[0].uuid : null;
+	}
+
 	var createdGroup = null;
 	try {
 		createdGroup = client.createGroup(newGroup);
 	} catch(ex) {
+
+		if (ex.message === "HTTP Status: 400 - Error" && client.isIWO()) {
+			var existingUuid = groupExists();
+			if (existingUuid) {
+				ex.message = `- ALREADY_EXISTS: ids: [${existingUuid}]`;
+			} else {
+				ex.message = "- NOT_FOUND: ";
+			}
+		}
+
 		if (ex.message.contains("- ALREADY_EXISTS: ")) {
 			var m = ex.message.match(/ids?:? \[([0-9]+)\]/);
 			if (m) {
@@ -362,12 +385,10 @@ function copyStaticGroup(g, allowDefer) {
 
 	// Get the members of the group in classic.
 	var sql = `
-		-- select e.className, e.displayName, e.remoteId, e.parentDisplayName, e.uuid, count(*) n, e.json
 		select e.className, e.displayName, e.remoteId, e.parentDisplayName, e.uuid, 1 n, e.json
 		from group_members m, entities e
 		where m.groupUuid = ?
 		and e.uuid == m.entityUuid
-		-- group by e.className, e.displayName, e.remoteId, e.parentDisplayName
 	`;
 
 	var numNoTargets = 0;		// num members skipped because the target hasnt been migrated
@@ -375,7 +396,6 @@ function copyStaticGroup(g, allowDefer) {
 	var numSkipped = 0;			// num members skipped - for any reason
 
 	var members = classicDb.query(sql, [ g.uuid ]);
-
 	var warnings = [ ];
 	var defer = false;
 
@@ -418,7 +438,7 @@ function copyStaticGroup(g, allowDefer) {
 		if (n === numNoTargets) {
 			error("   Skipped: ALL expected members depend on targets that have not been discovered - group skipped.");
 		} else if (n === numUnsupported) {
-			error("   Skipped: ALL expected members are unsupported types in XL - group skipped.");
+			error("   Skipped: ALL expected members are unsupported types in "+_xl+" - group skipped.");
 		} else {
 			error("   Skipped: Group skipped");
 		}
@@ -429,15 +449,15 @@ function copyStaticGroup(g, allowDefer) {
 
 	if (memberUuids.length === 0) {
 		if (parseInt(g.entitiesCount) === 0) {
-			success("   Success: Empty group created (also empty in classic)");
+			success(`   Success: Empty group created (also empty in ${_classic})`);
 		} else {
 			if (countMembers) {
-				warning(sprintf("   Warning: Empty group created (but %d member%s in classic).",
+				warning(sprintf(`   Warning: Empty group created (but %d member%s in ${_classic}).`,
 					parseInt(g.membersCount),
 					parseInt(g.membersCount) === 1 ? "" : "s"
 				));
 			} else {
-				warning(sprintf("   Warning: Empty group created (but %d entit%s in classic).",
+				warning(sprintf(`   Warning: Empty group created (but %d entit%s in ${_classic}).`,
 					parseInt(g.entitiesCount),
 					parseInt(g.entitiesCount) === 1 ? "y" : "ies"
 				));
@@ -514,13 +534,13 @@ function copyStaticGroup(g, allowDefer) {
 
 	if (newGroup.entitiesCount > 0) {
 		if (countMembers) {
-			success(sprintf("   Success: group created and now contains %d member%s (%d in classic)",
+			success(sprintf(`   Success: group created and now contains %d member%s (%d in ${_classic})`,
 				newGroup.membersCount,
 				parseInt(newGroup.membersCount) === 1 ? "y" : "ies",
 				g.membersCount
 			));
 		} else {
-			success(sprintf("   Success: group created and now contains %d entit%s (%d in classic)",
+			success(sprintf(`   Success: group created and now contains %d entit%s (%d in ${_classic})`,
 				newGroup.entitiesCount,
 				parseInt(newGroup.entitiesCount) === 1 ? "y" : "ies",
 				g.entitiesCount
@@ -572,7 +592,7 @@ function mapCriteria(groupType, criteria) {
 		classic = row;
 	});
 	if (classic === null) {
-		woops(sprintf("Internal error: group citeria '%s:%s' not found in classic", groupType, criteria.filterType));
+		woops(sprintf(`Internal error: group citeria '%s:%s' not found in ${_classic}`, groupType, criteria.filterType));
 	}
 
 	var xl = null;
@@ -581,7 +601,7 @@ function mapCriteria(groupType, criteria) {
 	});
 
 	if (xl === null) {
-		var e = new Error(sprintf("Group criteria '%s:%s' not implemented in XL", xlGroupType, criteria.filterType));
+		var e = new Error(sprintf("Group criteria '%s:%s' not implemented in %s", xlGroupType, criteria.filterType, _xl));
 		e.createAsStatic = true;
 		throw e;
 	}
@@ -589,7 +609,7 @@ function mapCriteria(groupType, criteria) {
 // NB: loadOptions is a boolean in the XL code.
 
 	if (!filtersMatch(xl, classic)) {
-		var e2 = new Error(sprintf("Group criteria '%s:%s' dont match in classic and XL", groupType, criteria.filterType));
+		var e2 = new Error(sprintf(`Group criteria '%s:%s' dont match in ${_classic} and ${_xl}`, groupType, criteria.filterType));
 		e2.createAsStatic = true;
 		throw e2;
 	}
@@ -604,7 +624,7 @@ function mapCriteria(groupType, criteria) {
 				classicEntity = JSON.parse(row.json);
 			});
 			if (classicEntity === null) {
-				var e = new Error(sprintf("Cant find filter entity with uuid '%v' in classic", uuid));
+				var e = new Error(sprintf(`Cant find filter entity with uuid '%v' in ${_classic}`, uuid));
 				e.createAsStatic = false;
 				throw e;
 			}
@@ -650,7 +670,7 @@ function copyDynamicGroup(g, warn) {
 	});
 
 	if (!found) {
-		error("   Error: group data not found in classicDb.");
+		error(`   Error: group data not found in ${_classic} cache DB.`);
 		return;
 	}
 
@@ -736,15 +756,15 @@ function copyDynamicGroup(g, warn) {
 	lib.saveGroupMapping(xlDb, g.uuid, createdGroup.uuid);
 	if (createdGroup.membersCount === 0) {
 		if (parseInt(g.membersCount) === 0) {
-			success("   Success: Empty group created (also empty in classic)");
+			success(`   Success: Empty group created (also empty in ${_classic})`);
 		} else {
 			if (countMembers) {
-				warning(sprintf("   Warning: Empty group (but %d member%s in classic).",
+				warning(sprintf(`   Warning: Empty group (but %d member%s in ${_classic}).`,
 					parseInt(g.membersCount),
 					parseInt(g.membersCount) === 1 ? "" : "s"
 				));
 			} else {
-				warning(sprintf("   Warning: Empty group (but %d entit%s in classic).",
+				warning(sprintf(`   Warning: Empty group (but %d entit%s in ${_classic}).`,
 					parseInt(g.entitiesCount),
 					parseInt(g.entitiesCount) === 1 ? "y" : "ies"
 				));
@@ -752,13 +772,13 @@ function copyDynamicGroup(g, warn) {
 		}
 	} else {
 		if (countMembers) {
-			success(sprintf("   Success: group created and now contains %d member%s (%v in classic)",
+			success(sprintf(`   Success: group created and now contains %d member%s (%v in ${_classic})`,
 				parseInt(createdGroup.membersCount),
 				parseInt(createdGroup.membersCount) === 1 ? "" : "s",
 				g.membersCount
 			));
 		} else {
-			success(sprintf("   Success: group created and now contains %d entit%s (%v in classic)",
+			success(sprintf(`   Success: group created and now contains %d entit%s (%v in ${_classic})`,
 				parseInt(createdGroup.entitiesCount),
 				parseInt(createdGroup.entitiesCount) === 1 ? "y" : "ies",
 				g.entitiesCount
@@ -827,10 +847,10 @@ function checkStaticGroupExists(g) {
 			: sprintf("Group exists and contains %d entit%s", xlCount, xlCount === 1 ? "y" : "ies");
 
 	var classicText = (classicCount === 0)
-		? "empty in classic"
+		? `empty in ${_classic}`
 		: countMembers
-			? sprintf("%d member%s in classic", classicCount, classicCount === 1 ? "" : "s")
-			: sprintf("%d entit%s in classic", classicCount, classicCount === 1 ? "y" : "ies");
+			? sprintf(`%d member%s in ${_classic}`, classicCount, classicCount === 1 ? "" : "s")
+			: sprintf(`%d entit%s in ${_classic}`, classicCount, classicCount === 1 ? "y" : "ies");
 
 	if (xlCount === 0 && classicCount > 0) {
 		warning("   Warning: "+xlText+" ("+classicText+")");
@@ -926,7 +946,7 @@ function copyRelationalGroup(g) {
 	}
 
 	if (nameMap[g.uuid]) {
-		warning2("   Deferred: change to as static group (duplicate name in classic)");
+		warning2(`   Deferred: change to as static group (duplicate name in ${_classic})`);
 		deferredStaticGroups.push(g);
 		return;
 	}
@@ -935,7 +955,7 @@ function copyRelationalGroup(g) {
 	try {
 		defn = creator(g);
 		if (defn === null) {
-			warning2("   Deferred: change to static group (no suitable dynamic group filter exists)");
+			warning2("   Deferred: change to static group (no suitable dynamic group filter exists).");
 			deferredStaticGroups.push(g);
 			return;
 		}
@@ -975,15 +995,15 @@ function copyRelationalGroup(g) {
 	lib.saveGroupMapping(xlDb, g.uuid, newGroup.uuid);
 	if (newGroup.entitiesCount === 0) {
 		if (parseInt(g.entitiesCount) === 0) {
-			success("   Success: Empty group created (also empty in classic)");
+			success(`   Success: Empty group created (also empty in ${_classic})`);
 		} else {
 			if (countMembers) {
-				warning(sprintf("   Warning: Empty group created (but %d member%s in classic).",
+				warning(sprintf(`   Warning: Empty group created (but %d member%s in ${_classic})`,
 					parseInt(g.membersCount),
 					parseInt(g.membersCount) === 1 ? "" : "s"
 				));
 			} else {
-				warning(sprintf("   Warning: Empty group created (but %d entit%s in classic).",
+				warning(sprintf(`   Warning: Empty group created (but %d entit%s in ${_classic})`,
 					parseInt(g.entitiesCount),
 					parseInt(g.entitiesCount) === 1 ? "y" : "ies"
 				));
@@ -991,13 +1011,13 @@ function copyRelationalGroup(g) {
 		}
 	} else {
 		if (countMembers) {
-			success(sprintf("   Success: group created and now contains %d member%s (%v in classic)",
+			success(sprintf(`   Success: group created and now contains %d member%s (%v in ${_classic})`,
 				parseInt(newGroup.membersCount),
 				parseInt(newGroup.membersCount) === 1 ? "" : "s",
 				g.membersCount
 			));
 		} else {
-			success(sprintf("   Success: group created and now contains %d entit%s (%v in classic)",
+			success(sprintf(`   Success: group created and now contains %d entit%s (%v in ${_classic})`,
 				parseInt(newGroup.entitiesCount),
 				parseInt(newGroup.entitiesCount) === 1 ? "y" : "ies",
 				g.entitiesCount
@@ -1039,7 +1059,7 @@ if (args_.i) {
 	});
 
 	while (true) {
-		var uuids = _.keys(scopeGroups).map(u => { return "'" + u + "'" }).join(",");
+		var uuids = _.keys(scopeGroups).map(u => { return "'" + u + "'"; }).join(",");
 		var newUuids = 0;
 		classicDb.query(`
 			select m.entityUuid uuid
@@ -1136,8 +1156,8 @@ if (args_.i) {
 		var later = false;
 
 		if (args_["skip-scoped-targets"]) {
-			var obj = JSON.parse(row.json);
-			if (isFromScopedTarget(obj) || (obj.groupType === "Application" && areAllMembersFromScopedTargets(row.uuid))) {
+			var obj2 = JSON.parse(row.json);
+			if (isFromScopedTarget(obj2) || (obj2.groupType === "Application" && areAllMembersFromScopedTargets(row.uuid))) {
 				message = "[orange::b]MIGRATE LATER[-::-] - Group depends entirely on scoped targets";
 				later = true;
 				forced = false;
@@ -1169,7 +1189,7 @@ if (args_.i) {
 			key: "-",
 			value: prompt,
 			selected: false,
-			message: "[red]Duplicate group name in classic - Cant migrate[-]",
+			message: `[red]Duplicate group name in ${_classic} - Cant migrate[-]`,
 			failed: true
 		});
 	});
@@ -1294,11 +1314,11 @@ lib.saveMetaData(xlDb, "migrate_groups_end_time", "" + (new Date()));
 
 if (showNote1) {
 	note("");
-	note("Note #1 - One or more groups that should be discovered by target probes in XL do not exist.");
+	note("Note #1 - One or more groups that should be discovered by target probes in "+_xl+" do not exist.");
 	note("          Possible reasons for this include:");
 	note("          - You've run this step too soon, and discovery is not actually yet complete. Wait and retry this step.");
 	note("          - The group should be discovered by a target that you have selected not to migrate.");
-	note("          - The group should be discovered by a scoped target but you have not yet run the second 'migrate-targets.sh' step");
+	note("          - The group should be discovered by a scoped target but you have not yet run the second 'migrate-targets' step");
 	note("            (in that case; this is not a problem. The group should appear later in the process.)");
 	note("          - The target that should discover this group has failed.");
 }

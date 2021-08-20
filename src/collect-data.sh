@@ -11,6 +11,12 @@ fi
 export TURBO_FORCE_COLOUR=yes
 
 . ./.env
+export _classic="$branding_classic"
+export _xl="$branding_xl"
+export _vendor="$branding_vendor"
+export _product="$branding_product"
+
+
 . bin/functions.sh
 
 option=""
@@ -20,6 +26,11 @@ if [ "$1" = "-skip-passwords" ]; then
 	option="-skip-passwords"
 elif [ ! -f "$datadir/.migrate-passwords" ]; then
 	option="-skip-passwords"
+fi
+
+iwoFlag=""
+if [ "$_xl" = "IWO" ]; then
+	iwoFlag="-iwo"
 fi
 
 phase="$1"
@@ -38,7 +49,7 @@ fi
 phase1() {
 	ready=$(bin/tbscript @null js/db-stats.js collect1Ready 2>/dev/null)
 	if [ "$force" = "false" ] && [ "$ready" != "true" ]; then
-		echo "Not ready to run 'collect-data.sh 1' yet - refer to the documentation for the correct order"
+		echo "Not ready to run 'collect-data (1)' yet - refer to the documentation for the correct order"
 		exit 2
 	fi
 
@@ -48,11 +59,7 @@ phase1() {
 		"$xl3_db" "$xl3_db"-work \
 		"$datadir/.redo-collect-1"
 
-	echo "+---------------------------------------------------------------+"
-	echo "|                                                               |"
-	echo "| Collecting data from CLASSIC instance                         |"
-	echo "|                                                               |"
-	echo "+---------------------------------------------------------------+"
+	echo "Collecting data from $_classic instance" | bin/viewer -box
 
 	roll_logs classic-collect
 
@@ -71,18 +78,16 @@ phase1() {
 
 	(cd js && ../bin/tbscript "$classic_cred" report.js "$classic_db" > "$reportsdir"/classic.html)
 
-	echo "+---------------------------------------------------------------+"
-	echo "|                                                               |"
-	echo "| Collecting data from XL instance (phase 1)                    |"
-	echo "|                                                               |"
-	echo "+---------------------------------------------------------------+"
+	echo
+	echo "Collecting data from $_xl instance" | bin/viewer -box
 
 	roll_logs xl-collect-1
 
 	(
 		cd js
+
 		script -q -c "
-			../bin/tbscript \"$xl_cred\" collect.js -skip-passwords -source-db \"$classic_db\" \"$xl1_db\"-work &&
+			../bin/tbscript \"$xl_cred\" collect.js $iwoFlag -skip-passwords -source-db \"$classic_db\" \"$xl1_db\"-work &&
 			mv \"$xl1_db\"-work \"$xl1_db\"
 		" "$logsdir"/xl-collect-1.log
 	)
@@ -115,7 +120,7 @@ phase1() {
 phase2() {
 	ready=$(bin/tbscript @null js/db-stats.js collect2Ready 2>/dev/null)
 	if [ "$force" = "false" ] && [ "$ready" != "true" ]; then
-		echo "Not ready to run 'collect-data.sh 2' yet - refer to the documentation for the correct order"
+		echo "Not ready to run 'collect-data (2)' yet - refer to the documentation for the correct order"
 		exit 2
 	fi
 
@@ -123,18 +128,15 @@ phase2() {
 		"$xl2_db" "$xl2_db"-work \
 		"$xl3_db" "$xl3_db"-work
 
-	echo "+---------------------------------------------------------------+"
-	echo "|                                                               |"
-	echo "| Collecting data from XL instance (phase 2)                    |"
-	echo "|                                                               |"
-	echo "+---------------------------------------------------------------+"
+	echo "Collecting data from $_xl instance" | bin/viewer -box
 
 	roll_logs xl-collect-2
 
 	(
 		cd js
+
 		script -q -c "
-			../bin/tbscript \"$xl_cred\" collect.js -skip-passwords -check-discovery -source-db \"$classic_db\" -map-groups \"$xl2_db\"-work &&
+			../bin/tbscript \"$xl_cred\" collect.js $iwoFlag -skip-passwords -check-discovery -source-db \"$classic_db\" -map-groups \"$xl2_db\"-work &&
 			mv \"$xl2_db\"-work \"$xl2_db\"
 		" "$logsdir"/xl-collect-2.log
 	)
@@ -151,24 +153,21 @@ phase2() {
 phase3() {
 	ready=$(bin/tbscript @null js/db-stats.js collect3Ready 2>/dev/null)
 	if [ "$force" = "false" ] && [ "$ready" != "true" ]; then
-		echo "Not ready to run 'collect-data.sh 3' yet - refer to the documentation for the correct order"
+		echo "Not ready to run 'collect-data (3)' yet - refer to the documentation for the correct order"
 		exit 2
 	fi
 
 	rm -f "$xl3_db" "$xl3_db"-work
 
-	echo "+---------------------------------------------------------------+"
-	echo "|                                                               |"
-	echo "| Collecting data from XL instance (phase 3)                    |"
-	echo "|                                                               |"
-	echo "+---------------------------------------------------------------+"
+	echo "Collecting data from $_xl instance" | bin/viewer -box
 
 	roll_logs xl-collect-3
 
 	(
 		cd js
+
 		script -q -c "
-			../bin/tbscript \"$xl_cred\" collect.js -skip-passwords -source-db \"$classic_db\" -map-groups \"$xl3_db\"-work &&
+			../bin/tbscript \"$xl_cred\" collect.js $iwoFlag -skip-passwords -source-db \"$classic_db\" -map-groups \"$xl3_db\"-work &&
 			mv \"$xl3_db\"-work \"$xl3_db\"
 		" "$logsdir"/xl-collect-3.log
 	)
@@ -189,7 +188,7 @@ export TURBO_FORCE_COLOUR=yes
 if [ ! -r "$datadir"/tbutil-credentials.json ]; then
 	echo ""
 	echo "File not found: $datadir/tbutil-credentials.json"
-	echo "It looks as if you havent run 'sh setup.sh' yet."
+	echo "It looks as if you havent run 'setup' yet."
 	echo ""
 	exit 2
 fi

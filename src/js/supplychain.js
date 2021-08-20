@@ -1,4 +1,7 @@
 var lib = require("./libmigrate");
+
+var _classic = lib._classic;
+var _xl = lib._xl;
 var nameMap = lib.nameMap;
 
 function getSupplyChain(cred, cnm) {
@@ -10,7 +13,7 @@ function getSupplyChain(cred, cnm) {
 		var type2 = cnm[type] || type;
 		rtn[type2] = rtn[type2] || 0;
 		rtn[type2] += seMap[type].entitiesCount;
-	})
+	});
 	return [ cred, rtn ];
 }
 
@@ -45,7 +48,7 @@ _.keys(classicChain).forEach(type => {
 var types = _.keys(all);
 types.sort();
 
-var headers = [ "Type", ">Number in Classic", ">Number in XL" ];
+var headers = [ "Type", ">Number in "+_classic, ">Number in "+_xl ];
 var rows = [ ];
 types.forEach(type => {
 	rows.push([

@@ -90,6 +90,7 @@ var showGroupMembers = { };
 function mapExpType(e) {
 	switch (e) {
 		case "RXEQ": return "matches";
+		case "EQ": return "is";
 		case "RXNEQ": return "doesnt match";
 		default: return e;
 	}
@@ -108,17 +109,23 @@ function mapFilterType(f) {
 
 
 function simplifyExpression(e, v) {
-	if (e === "RXEQ" && v.match(/^[a-zA-Z0-9]*\.\*$/)) {
+	if (e === "RXEQ" && v.match(/^[ a-zA-Z0-9._:-]+\.\*$/)) {
 		return "starts with \""+v.trimSuffix(".*")+"\"";
 	}
-	if (e === "RXNEQ" && v.match(/^[a-zA-Z0-9]*\.\*$/)) {
+	if (e === "RXNEQ" && v.match(/^[ a-zA-Z0-9._:-]+\.\*$/)) {
 		return "doesnt start with \""+v.trimSuffix(".*")+"\"";
 	}
-	if (e === "RXEQ" && v.match(/^\.\*[a-zA-Z0-9]*$/)) {
+	if (e === "RXEQ" && v.match(/^\.\*[ a-zA-Z0-9._:-]+$/)) {
 		return "ends with \""+v.trimPrefix(".*")+"\"";
 	}
-	if (e === "RXNEQ" && v.match(/^\.\*[a-zA-Z0-9]*$/)) {
+	if (e === "RXNEQ" && v.match(/^\.\*[ a-zA-Z0-9._:-]+$/)) {
 		return "doesnt end with \""+v.trimPrefix(".*")+"\"";
+	}
+	if (e === "RXEQ" && v.match(/^\.\*[ a-zA-Z0-9._:-]+\.\*$/)) {
+		return "contains \""+v.trimSuffix(".*").trimPrefix(".*")+"\"";
+	}
+	if (e === "RXEQ" && v.match(/^[ a-zA-Z0-9._:-]+$/)) {
+		return "is \""+v+"\"";
 	}
 	return mapExpType(e) + " \"" + v + "\"";
 }
@@ -564,7 +571,8 @@ println("</div>");
 
 _.keys(showGroupMembers).forEach(uuid => {
 	var g = client.getGroupByUuid(uuid);
-	var m = client.getEntitiesByGroupUuid(uuid);
+//	var m = client.getEntitiesByGroupUuid(uuid);
+	var m = client.getMembersByGroupUuid(uuid);
 
 	println(`
 		<div id="${uuid}" style="display: none">
@@ -580,7 +588,7 @@ _.keys(showGroupMembers).forEach(uuid => {
 				<b>UUID: </b>${g.uuid}
 			</div>
 			<div style="margin-top: 10px">
-				<b>Number of entities: </b>${m.length} (green/bold indicates active entities)
+				<b>Number of members: </b>${m.length} (Green: active entities. Red: idle)
 			</div>
 			<pre style="background-color: #f0f0f0; border: solid 1 #8080; padding: 10px; font-size: 16px">`);
 	m.sort((a, b) => {
@@ -591,14 +599,31 @@ _.keys(showGroupMembers).forEach(uuid => {
 		return 0;
 	});
 
+	var knownGroup = function(uuid) {
+		return false;
+	};
+
 	m.forEach(e => {
-		if (e.state === "ACTIVE") {
-			println("<span class='active'>"+htmlEncode(e.displayName)+"</span>");
-		} else if (e.state === "IDLE") {
-			println("<span class='idle'>"+htmlEncode(e.displayName)+"</span>");
-		} else {
-			println(htmlEncode(e.displayName));
+		var dn = htmlEncode(e.displayName);
+		var cn = htmlEncode(e.className);
+		var linkUuid = null;
+		if (["Group", "Cluster", "BusinessAccount"].contains(cn) && knownGroup(e.uuid)) {
+			linkUuid = e.uuid;
 		}
+		if (linkUuid) {
+			print(`<a href='#' onclick=\"pushPage('${linkUuid}')\">`);
+		}
+		if (e.state === "ACTIVE") {
+			print(`<span class='active'>${cn} :: ${dn}</span>`);
+		} else if (e.state === "IDLE") {
+			print(`<span class='idle'>${cn} :: ${dn}</span>`);
+		} else {
+			print(`${cn} :: ${dn}`);
+		}
+		if (linkUuid) {
+			print("</a>");
+		}
+		println("");
 	});
 	println(`</pre>
 		</div>

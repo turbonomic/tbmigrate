@@ -11,7 +11,7 @@ fi
 
 ready=$(bin/tbscript @null js/db-stats.js reviewGroupsReady 2>/dev/null)
 if [ "$force" = "false" ] && [ "$ready" != "true" ]; then
-	echo "Not ready to run 'compare-groups.sh' yet - refer to the documentation for the correct order"
+	echo "Not ready to run 'compare-groups' yet - refer to the documentation for the correct order"
 	exit 2
 fi
 

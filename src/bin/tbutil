@@ -4,6 +4,8 @@ prog=$(realpath "$0")
 dn=$(dirname "$prog")
 bn=$(basename "$prog")
 
-export TURBO_CREDENTIALS_FILE=$(realpath "$dn/../data/tbutil-credentials.json")
+export TURBO_CREDENTIALS_FILE="$dn/../data/tbutil-credentials.json"
+export TURBO_COOKIES_DIR="$dn/../data/tbutil-cookies"
+export TURBO_ISSUE_FILE=$(realpath "$dn/.issue")
 
 exec "$dn/.exe/$bn" "$@"

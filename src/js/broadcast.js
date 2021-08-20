@@ -1,5 +1,7 @@
 /* global sshConnect, dnsLookup */
 
+// command: trigger broadcast
+
 var conn = sshConnect(client.getCredentialKey());
 var dnsTunnel = conn.tunnel("169.254.25.10:53", false);
 var ips = dnsLookup("topology-processor.turbonomic.svc.cluster.local.", dnsTunnel.address);

@@ -1,15 +1,11 @@
-// NB: Targets that need group scopes cant be created until the groups have been created.
-//     However: we need to create the main targets BEFORE we can create groups.
-//     Hence: this script will need to be run twice.
-//			once, ignorning scoped targets
-//			then: the migrate-groups scipt should be run
-//			then again: handling scoped targets. (if there are any to migrate)
-
 /* jshint -W083, -W080, -W061 */
 /* globals title, titleOf, error, warning, success, note */
 
 var lib = require("./libmigrate.js");
 var F = require("@/functions");
+
+var _classic = lib._classic;
+var _xl = lib._xl;
 
 function E(x) { return x || {}; }
 
@@ -17,7 +13,7 @@ usage = function() {
 	println("");
 	println("Usage is:");
 	println("");
-	println("  tbscript {xl-credentials} migrate-targets.js [options] {classic-db-file} {xl-db-file}");
+	printf ("  tbscript @xl migrate-targets.js [options] {%s-db-file} {%s-db-file}\n", _classic.toLowerCase(), _xl.toLowerCase());
 	println("");
 	println("  where options is any combination of:");
 	println("     -include-scoped-targets");
@@ -34,10 +30,9 @@ if (args_.remaining.length !== 2) {
 
 
 if (!client.isXL()) {
-	woops("This is not an XL instance");
+	woops("This is not an "+_xl+" instance");
 }
 
-var namePrefix = "MIGRATED-";
 
 var P = plugin("sqlite3-plugin");
 var classicDb = P.open("file:"+args_.remaining[0]+"?mode=ro");
@@ -105,30 +100,30 @@ classicDb.query("select json from targets").forEach(row => {
 function targetDetailsMatch(name, type) {
 	var classicTarget = null;
 	var numClassicTargets = 0;
-	classicDb.query("select * from targets where lower(name) = lower(?) and type = ?", [name, type]).forEach(row => {
+	classicDb.query("select * from targets where lower(name) = ? and type = ?", [name.toLowerCase(), type]).forEach(row => {
 		classicTarget = JSON.parse(row.json);
 		classicTarget.name = row.name;
 		numClassicTargets += 1;
 	});
 
 	if (numClassicTargets > 1) {
-		return "Multiple matching targets found in classic";
+		return "Multiple matching targets found in "+_classic;
 	} else if (numClassicTargets === 0) {
-		return "No matching targets found in classic";
+		return "No matching targets found in "+_classic;
 	}
 
 	var xlTarget = null;
 	var numXlTargets = 0;
-	xlDb.query("select * from targets where lower(name) = lower(?) and type = ?", [name, type]).forEach(row => {
+	xlDb.query("select * from targets where lower(name) = ? and type = ?", [name.toLowerCase(), type]).forEach(row => {
 		xlTarget = JSON.parse(row.json);
 		xlTarget.name = row.name;
 		numXlTargets += 1;
 	});
 
 	if (numXlTargets > 1) {
-		return "Multiple matching targets found in XL";
+		return "Multiple matching targets found in "+_xl;
 	} else if (numXlTargets === 0) {
-		return "No matching targets found in XL";
+		return "No matching targets found in "+_xl;
 	}
 
 
@@ -189,7 +184,7 @@ function targetDetailsMatch(name, type) {
 	}
 
 	mismatches.sort();
-	return "Exists in XL but details differ from classic ("+mismatches.join(", ")+")";
+	return "Exists in "+_xl+" but details differ from "+_classic+" ("+mismatches.join(", ")+")";
 }
 
 
@@ -247,10 +242,6 @@ classicDb.query("select distinct uuid, category, type, displayName, name, isScop
 
 	// Filter out derived targets ..
 	if (derived[row.uuid]) { return; }
-
-	// Filter out kubeturo etc
-//	if (row.category === "Cloud Native" && row.type.hasPrefix("Kubernetes")) { return; }
-//	if (row.category === "Cloud Native" && row.type.hasPrefix("TerraForm")) { return; }
 
 	var sel = selected[row.uuid];
 	if (sel === undefined && args_["deselect-by-default"]) {
@@ -310,7 +301,7 @@ classicDb.query("select distinct uuid, category, type, displayName, name, isScop
 	if (lib.targetExists(xlDb, row.name, row.type)) {
 		var msg = targetDetailsMatch(row.name, row.type);
 		if (msg === null) {
-			choice.message = sprintf("[orange::b]EXSITS[-::-] - Target already exists in XL");
+			choice.message = sprintf("[orange::b]EXSITS[-::-] - Target already exists in "+_xl);
 			choice.selected = false;
 			choice.skipped = true;
 			choice.exclude = true;
@@ -349,7 +340,7 @@ classicDb.query("select distinct uuid, category, type, displayName, name, isScop
 
 	if (n === 0 && !choice.skipped) {
 		nSkipped += 1;
-		choice.message = sprintf("[orange::b]ACTION SUGGESTED[-::-] - Mediation pod for Target type '%s::%s' is not configured in XL", row.category, xlType);
+		choice.message = sprintf("[orange::b]ACTION SUGGESTED[-::-] - Mediation pod for Target type '%s::%s' is not configured in "+_xl, row.category, xlType);
 		choice.selected = false;
 		choice.skipped = true;
 		choice.failed = true;
@@ -358,7 +349,7 @@ classicDb.query("select distinct uuid, category, type, displayName, name, isScop
 
 	if (classicTarget.status !== "Validated" && !choice.skipped) {
 		nSkipped += 1;
-		choice.message = sprintf("[orange::b]ACTION SUGGESTED[-::-] - Target validation failed in Classic");
+		choice.message = sprintf("[orange::b]ACTION SUGGESTED[-::-] - Target validation failed in "+_classic);
 		choice.selected = false;
 		choice.skipped = true;
 		choice.failed = true;
@@ -412,7 +403,7 @@ classicDb.query("select distinct uuid, category, type, displayName, name, isScop
 
 	if (notInClassic.length > 0 && !choice.skipped) {
 		notInClassic.sort();
-		choice.message = sprintf("XL Field%s unknown to classic for '%s::%s' - %s", notInClassic.length > 1 ? "s" : "", foundCategory, row.type, notInClassic.join(", "));
+		choice.message = sprintf(_xl+" Field%s unknown to "+_classic+" for '%s::%s' - %s", notInClassic.length > 1 ? "s" : "", foundCategory, row.type, notInClassic.join(", "));
 		choice.selected = false;
 		choice.skipped = true;
 		return;
@@ -465,11 +456,12 @@ if (getenv("AUTO_SELECT_ALL_TARGETS") !== "true") {
 	}
 
 	if (numMismatchedTargets > 0) {
-		warning("***************************************************************************************");
-		warning(sprintf("WARNING: %d targets in XL have configurations that dont match their classic equivalents", numMismatchedTargets));
-		warning("***************************************************************************************");
+		var mesg = sprintf("WARNING: %d targets in %s have configurations that dont match their %s equivalents", numMismatchedTargets, _xl, _classic);
+		warning("*".repeat(mesg.length));
+		warning(mesg);
+		warning("*".repeat(mesg.length));
 		println("");
-		println("We strongly advise correcting these issues in XL before proceeding.");
+		println("We strongly advise correcting these issues in "+_xl+" before proceeding.");
 		println("");
 		println("Do you wish to disregard this warning and continue none the less?");
 		while (true) {
@@ -673,7 +665,7 @@ targets.forEach(row => {
 
 			if (classicFields[fld] === undefined) {
 
-				error(sprintf("Field '%s' in XL target '%s::%s' not defined in classic\n", fld, foundCategory, xlType));
+				error(sprintf("Field '%s' in %s target '%s::%s' not defined in %s\n", fld, _xl, foundCategory, xlType, _classic));
 				return;
 
 			} else if (f.isSecret) {
@@ -876,8 +868,8 @@ targets.forEach(row => {
 if (!args_["include-scoped-targets"] && getenv("TBMIGRATE_MENU") !== "true") {
 	if (numSkippedScoped > 0) {
 		note("\nNOTE: There are scoped targets to be migrated once groups are in place.");
-		note(  "      You should run 'sh migrate-targets.sh 2' once discovery is complete");
-		note(  "      and after migrating the groups using 'sh migrate-groups.sh 1'.");
+		note(  "      You should run 'migrate-targets (2)' once discovery is complete");
+		note(  "      and after migrating the groups using 'migrate-groups (1)'.");
 		note(  "      See the documentation for details.\n");
 	}
 }

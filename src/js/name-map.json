@@ -64,7 +64,17 @@
 		"/.*?-vSAN-Cluster-"
 	],
 
+//	/********************************************************************************************
+//		Classic "system groups" that cannot be created in XL under any circumstances, and so
+//		cannot be used as scopes. These are listed by their fixed UUIDs
+//	*********************************************************************************************/
+//
+//	"unmigratable_group_names": [
+//		"GROUP-MyGroups"
+//	],
 
+	/********************************************************************************************
+	*********************************************************************************************/
 
 	"template_name_map": {
 		"VirtualMachine": {
@@ -106,6 +116,7 @@
 
 	"target_cooker_script_map": {
 		"AWS": "aws-cooker.js",
+		"Azure Service Principal": "simple-defaults-cooker.js",
 		"vCenter": "vcenter-cooker.js",
 
 		/* the next 3 entries are now redundant. The scope-cooker.js is automatically called for any scoped target */

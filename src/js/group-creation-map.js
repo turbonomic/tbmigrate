@@ -27,13 +27,14 @@ var _this = {
 
 
 	// A null creator (or one that returns null) results in a static group being created.
+	// Note: groups types that cannot be created must throw a string meessage (not a "new Error()").
 
 	creatorMap: {
 		"AppByPM": function(g) { throw "Dynamic 'Application' groups are not migratable"; },
 
 		"ApplicationByPhysicalMachine": function(g) { throw "Dynamic 'Application' groups are not migratable"; },
 
-		"ApplicationByType": null, // function(g) { throw "Dynamic 'Application' groups are not migratable"; },
+		"ApplicationByType": null, 		// TODO
 
 		"ApplicationServerByType": function(g) { throw "Dynamic 'Application' groups are not migratable"; },
 
@@ -41,9 +42,11 @@ var _this = {
 
 		"AppsByTarget": function(g) { throw "Dynamic 'Application' groups are not migratable"; },
 
-		"ChassisByNetwork": null,
+		"ChassisByNetwork": null,		// TODO
 
-		"CHsByNetwork": null,
+// TODO - Recheck all "not used" groups using "list group members" with "-direct" option
+
+		"CHsByNetwork": null,			// not used (?)
 
 		"ContainerByDataCenter": null,
 
@@ -57,31 +60,31 @@ var _this = {
 
 		"ContainerPodByVM": null,
 
-		"DAsByStorageController": null,
+		"DAsByStorageController": null,	// not used (?)
 
-		"DatabaseByType": null,
+		"DatabaseByType": null,			// TODO
 
-		"DBsByAccount": null,
+		"DBsByAccount": null,			// not used (?)
 
-		"DBsByResourceGroup": null,
+		"DBsByResourceGroup": null,		// not used (?)
 
-		"DBSsByAccount": null,
+		"DBSsByAccount": null,			// not used (?)
 
-		"DBSsByResourceGroup": null,
+		"DBSsByResourceGroup": null,	// not used (?)
 
-		"DiskArrayByStorageController": null,
+		"DiskArrayByStorageController": null,	// TODO
 
-		"EntitiesByCluster": null,
+		"EntitiesByCluster": null,		// TODO
 
-		"IOModuleByChassis": null,
+		"IOModuleByChassis": null,		// TODO
 
-		"IOsByChassis": null,
+		"IOsByChassis": null,			// not used (?)
 
-		"LogicalPoolByDiskArray": null,
+		"LogicalPoolByDiskArray": null,	// TODO
 
-		"LPsByStorageController": null,
+		"LPsByStorageController": null,	// not used (?)
 
-		"PhysicalMachineByChassis": null,
+		"PhysicalMachineByChassis": null,	// TODO
 
 		"PhysicalMachineByChassisOrDataCenter": function(g) {
 			var obj = g.json ? JSON.parse(g.json) : _.deepClone(g);
@@ -102,7 +105,7 @@ var _this = {
 
 		"PhysicalMachineByCluster": function(g) {
 			var obj = g.json ? JSON.parse(g.json) : _.deepClone(g);
-			if ((obj.source || {}).type === "Hyper-V") { return null; }
+			//if ((obj.source || {}).type === "Hyper-V") { return null; }
 			var clusterName = _this.lib.mapGroupName(g.displayName).trimPrefix("PMs_").replace(/\\/g, "/");
 			var groupName = "PMs_" + clusterName;
 			return _this.pmDynamicGroup(clusterName, "pmsByClusterName", groupName);
@@ -116,27 +119,27 @@ var _this = {
 
 		"PivotalVmsByDeployment": null,
 
-		"PMsByChassis": null,
+		"PMsByChassis": null,		// not used (?)
 
-		"PMsByCluster": null,
+		"PMsByCluster": null,		// not used (?)
 
-		"PMsByCost": null,
+		"PMsByCost": null,			// not used (?)
 
-		"PMsByDatacenter": null,
+		"PMsByDatacenter": null,	// not used (?)
 
-		"PMsByTargetType": null,
+		"PMsByTargetType": null,	// not used (?)
 
-		"ProxyVMsByTarget": null,
+		"ProxyVMsByTarget": null,	// not used (?)
 
-		"StorageByCluster": null,
+		"StorageByCluster": null,		// TODO
 
-		"StorageByDataCenter": null,
+		"StorageByDataCenter": null,	// TODO
 
-		"StorageByDiskArray": null,
+		"StorageByDiskArray": null,		// TODO
 
-		"StorageByLogicalPool": null,
+		"StorageByLogicalPool": null,	// TODO
 
-		"StorageByServiceLevelCluster": null,
+		"StorageByServiceLevelCluster": null,	// not used (?)
 
 		"StorageByStorageCluster": function(g) {
 			var f = _this.lib.mapGroupName(g.displayName).trimPrefix("Storage_").split("/");
@@ -186,31 +189,31 @@ var _this = {
 			}
 		},
 
-		"StorageByTargetType": null,
+		"StorageByTargetType": null,		// not used (?)
 
-		"StorageEntitiesByCluster": null,
+		"StorageEntitiesByCluster": null,	// TODO
 
-		"StorageEntitiesByServiceLevelCluster": null,
+		"StorageEntitiesByServiceLevelCluster": null,	// TODO
 
-		"STsByCluster": null,
+		"STsByCluster": null,				// not used (?)
 
-		"STsByCost": null,
+		"STsByCost": null,					// not used (?)
 
-		"STsByDatacenter": null,
+		"STsByDatacenter": null,			// not used (?)
 
-		"STsByDiskArray": null,
+		"STsByDiskArray": null,				// not used (?)
 
-		"STsBySLCluster": null,
+		"STsBySLCluster": null,				// not used (?)
 
-		"STsBySTCluster": null,
+		"STsBySTCluster": null,				// not used (?)
 
-		"SwitchByNetwork": null,
+		"SwitchByNetwork": null,			// TODO
 
-		"SWsByNetwork": null,
+		"SWsByNetwork": null,				// not used (?)
 
-		"VAppsByServiceType": null,
+		"VAppsByServiceType": null,			// not used (?)
 
-		"VirtualMachineByBusinessUser": null,
+		"VirtualMachineByBusinessUser": null,	// TODO
 
 		"VirtualMachineByCluster": function(g) {
 			var clusterName = _this.lib.mapGroupName(g.displayName).trimPrefix("VMs_").replace(/\\/g, "/");
@@ -317,7 +320,28 @@ var _this = {
 
 		"VMsByTarget": null,
 
-		"VMsByTargetType": null,
+		"VMsByTargetType": function(g) {
+			g = JSON.parse(g.json);
+			if (g.cloudType === "AZURE" || g.cloudType === "AWS") {
+				return {
+				    "cloudType": g.cloudType,
+				    "criteriaList": [
+				        {
+				            "caseSensitive": false,
+				            "expType": "EQ",
+				            "expVal": g.cloudType,
+				            "filterType": "vmsByCloudProvider",
+				            "singleLine": false
+				        }
+				    ],
+				    "displayName": g.displayName,
+				    "groupType": "VirtualMachine",
+				    "isStatic": false,
+				    "logicalOperator": "AND",
+				};
+			}
+			return null;
+		},
 
 		"WorkloadByAccount": null,
 
@@ -401,10 +425,15 @@ var _this = {
 	hotAddMemoryGroupUuid:  function() { return "1236000000"; },
 	hotAddCpuGroupUuid:     function() { return "1237000000"; },
 
+
 	// Refer to DefaultGroups.group.topology on classic. Names here must match group internal names in that filse
 	// (stripped of the "GROUP-" prefix).
 
 	defaultGroupsByName: {
+		"AllVirtualMachine": function(g) { return _this.allEntitiesOfType(g, "VirtualMachine"); },
+
+		"MyGroups": function(g) { throw "Un-migratable group"; },
+
 		"CloudDBSs": function(g) { return _this.allCloud(g, "DatabaseServer", "databaseServerByCloudProvider", "AZURE|AWS"); },
 		"CloudDBs": function(g) { return _this.allCloud(g, "Database", "databaseByCloudProvider", "AZURE"); },
 		"CloudPMs": function(g) { return _this.allCloud(g, "Zone", "zoneByCloudProvider", "AZURE|AWS|SOFTLAYER"); },

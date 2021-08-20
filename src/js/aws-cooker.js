@@ -26,6 +26,31 @@ exports.cook = function(fieldsByName, classicFields, xlFields, classicDb, xlDb, 
 		}
 	}
 
+	if (xlFields.proxyHost && !xlFields.proxy && !classicFields.proxyHost && classicFields.proxy) {
+		var renameField = function(x, c) {
+			classicFields[x] = _.deepClone(classicFields[c]);
+			delete classicFields[c];
+
+			fieldsByName[x] = _.deepClone(fieldsByName[c]);
+			delete fieldsByName[c];
+			fieldsByName[x].name = x;
+		};
+		renameField("proxyHost", "proxy");
+		renameField("proxyPort", "port");
+		renameField("proxyUsername", "proxyUser");
+		classicFields.secureProxy = {
+			n: _.keys(classicFields).length,
+			type: "BOOLEAN"
+		};
+		fieldsByName.secureProxy = {
+			displayName: "Secure Proxy",
+			name: "secureProxy",
+			value: "false",
+			valueType: "BOOLEAN",
+			isSecret: false
+		};
+	}
+
 	// patch up any remaining, missing, defaultable settings
 
 	var cooker = require("./simple-defaults-cooker.js");

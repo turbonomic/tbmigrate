@@ -4,6 +4,10 @@
 // Load up the needed libraries and plugins
 
 var lib = require("./libmigrate.js");
+
+var _classic = lib._classic;
+var _xl = lib._xl;
+
 var cm = require("./group-creation-map.js");
 cm.set("lib", lib);
 
@@ -28,7 +32,7 @@ usage = function() {
 	exit(2);
 };
 
-var args_ = F.extendedOptions("", "skip-passwords", "source-db:", "target-criteria:", "map-groups", "check-discovery");
+var args_ = F.extendedOptions("", "skip-passwords", "source-db:", "target-criteria:", "map-groups", "check-discovery", "iwo");
 if (args_.remaining.length !== 1) {
 	usage();
 }
@@ -70,6 +74,18 @@ var nameMap = { };
 
 var myGroupsByUuid = { };
 var myGroupsByName = { };
+
+if (!client.isXL()) {
+	var groups = _.deepClone(loadCsv("defaultGroups.csv"));
+	groups.shift();
+
+	groups.forEach(row => {
+//		if (row[2].match(/^GROUP-[A-Za-z]*By[A-Za-z]*$/) || cm.defaultGroupsByName[row[2].trimPrefix("GROUP-")] !== undefined) {
+		if (row[2].match(/^GROUP-[A-Za-z]*$/) || cm.defaultGroupsByName[row[2].trimPrefix("GROUP-")] !== undefined) {
+			defaultGroupUuids[row[0]] = row[2];
+		}
+	});
+}
 
 // ====================================================================================
 // Helper functions
@@ -160,9 +176,14 @@ function getGroupByUuid(uuid) {
 		}
 		return rtn;
 	} else {
-		return client.getGroupByNameOrUuid(uuid);
+//		return client.getGroupByNameOrUuid(uuid);
+		return client.getGroupByUuid(uuid);
 	}
 }
+
+
+// For this function to identify the correct selection of groups, the matching entry in group-creation-map.js should
+// throw a string (not an error) without inspecting the json body passed.
 
 function isDefaultGroupThatThrowsError(uuid) {
 	var iname = defaultGroupUuids[uuid];
@@ -177,7 +198,10 @@ function isDefaultGroupThatThrowsError(uuid) {
 		fn({json:"{}"});
 		return false;
 	} catch (ex) {
-		return true;
+		if (_.isString(ex)) {
+			return true;
+		}
+		return false;
 	}
 }
 
@@ -203,7 +227,7 @@ function saveGroup(db, g, order, reason) {
 
 		if (path.length > 0 && path.length === (path0.length - 1)) {
 			var catUuid = path[path.length - 1].uuid;
-			if (defaultGroupUuids[catUuid]) {
+			if (defaultGroupUuids[catUuid] && defaultGroupUuids[catUuid] !== "GROUP-MyGroups") {
 				groupCategories[g.uuid] = defaultGroupUuids[catUuid];
 			}
 		}
@@ -237,7 +261,7 @@ function saveMapping(tableName, saveFunc, dnMappingFunc) {
 			}
 		};
 
-		showDups("XL");
+		showDups(_xl);
 
 		var sDnToUuid = { };
 		counts = { };
@@ -249,7 +273,7 @@ function saveMapping(tableName, saveFunc, dnMappingFunc) {
 			}
 		});
 
-		showDups("Classic");
+		showDups(_classic);
 
 		_.keys(dnToUuid).forEach(dn => {
 			var uuid = dnToUuid[dn];
@@ -284,6 +308,29 @@ function getFilterCategory(entType, filterType) {
 	return rtnRow.filterCriteria;
 }
 
+
+// At least one test instance shows the word "staging" in version.branch. Since we use this later,
+// we need it to look like the more normal "n.n.n".
+function fixVersionInfo(v) {
+	var m = (v.branch || "").match(/^\d+\.\d+\.\d+$/);
+	if (m) { return; }
+
+	m = (v.version || "").match(/^(\d+\.\d+\.\d+)(-SNAPSHOT)?$/);
+	if (m && m.length >= 2) {
+		v.branch_ORG = v.branch;
+		v.branch = m[1];
+		return;
+	}
+
+	m = (v.versionInfo || "").match(/^Turbonomic Operations Manager (\d+\.\d+\.\d+)(-SNAPSHOT)? /);
+	if (m && m.length >= 2) {
+		v.branch_ORG = v.branch;
+		v.branch = m[1];
+		return;
+	}
+}
+
+
 // ====================================================================================
 
 title("Collecting meta data");
@@ -291,7 +338,9 @@ title("Collecting meta data");
 lib.createMetaDataTable(db);
 
 lib.saveMetaData(db, "startTime", "" + (new Date()));
-lib.saveMetaData(db, "version", client.getVersionInfo());
+var v = client.getVersionInfo();
+fixVersionInfo(v);
+lib.saveMetaData(db, "version", v);
 lib.saveMetaData(db, "license", client.getLicenseSummary());
 lib.saveMetaData(db, "isXL", client.isXL());
 lib.saveMetaData(db, "isLocal", client.isLocal());
@@ -301,7 +350,7 @@ lib.saveMetaData(db, "credKey", client.getCredentialKey());
 lib.saveMetaData(db, "user", userInfo);
 lib.saveMetaData(db, "skip-passwords", args_["skip-passwords"] ? true : false);
 lib.saveMetaData(db, "settings-specs", client.getSettingsSpecs({}));
-
+lib.saveMetaData(db, "isIwo", client.isIWO());
 
 // ====================================================================================
 
@@ -318,7 +367,6 @@ client.getProbes().forEach(p => {
 });
 
 println("");
-
 
 // ====================================================================================
 
@@ -374,7 +422,23 @@ if (checkDiscoveryState) {
 
 // ====================================================================================
 
+var iwoTargets = { };
+
+if (client.isIWO()) {
+	title("Collecting Intersight targets");
+	var info = client.http.get("~/api/v1/asset/Targets", {});
+	(info.Results || []).forEach(t => {
+		print(".");
+		iwoTargets[t.Moid] = t;
+	});
+	println("");
+}
+
+// ====================================================================================
+
+
 title("Collecting targets");
+
 
 lib.createTargetTables(db);
 var targetUuidsByScopeUuid = { };
@@ -395,6 +459,7 @@ targets.filter(t => { return derivedTargets[t.uuid]; }).forEach(t => {
 
 targets.filter(t => { return !derivedTargets[t.uuid]; }).forEach(t => {
 	print(".");
+	t.iwoInfo = iwoTargets[t.displayName];
 	lib.saveTarget(db, t);
 	targetNameByUuid[t.uuid] = lib.getTargetName(t);
 
@@ -422,6 +487,34 @@ targets.filter(t => { return !derivedTargets[t.uuid]; }).forEach(t => {
 
 println("");
 
+
+// ====================================================================================
+
+function findXlTarget(classicDb, xlDb, classicTargetUuid) {
+	var targetName = null;
+	var xlTargetUuid = null;
+	if (classicTargetUuid) {
+		classicDb.query("select name from targets where uuid = ?", [classicTargetUuid]).forEach(row => {
+			targetName = row.name;
+		});
+		if (!targetName) {
+			classicDb.query("select name from derived_targets where uuid = ?", [classicTargetUuid]).forEach(row => {
+				targetName = row.name;
+			});
+		}
+		if (targetName) {
+			xlDb.query("select uuid from targets where name = ?", [targetName]).forEach(row => {
+				xlTargetUuid = row.uuid;
+			});
+			if (!xlTargetUuid) {
+				xlDb.query("select uuid from derived_targets where name = ?", [targetName]).forEach(row => {
+					xlTargetUuid = row.uuid;
+				});
+			}
+		}
+	}
+	return xlTargetUuid;
+}
 
 // ====================================================================================
 
@@ -461,15 +554,16 @@ if ( !args_["skip-passwords"]) {
 			lib.saveMetaData(db, "vmt_helper_key_format", "raw");
 		} else {
 			var xlVersion = newClient("@xl").getVersionInfo();
+			fixVersionInfo(xlVersion);
 			var m = xlVersion.version.match(new RegExp('^\\d+\\.\\d+\\.\\d'));
 			if (m) {
 				var v = m[0].split(".");
 				v = parseInt(v[0]) * 10000 + parseInt(v[1]) * 100 + parseInt(v[2]);
 				if (v < 72209) {
 					println("\n");
-					error("Error: Target password migration from this classic instance requires XL 8.0.0 or later");
+					error(`Error: Target password migration from this ${_classic} instance requires ${_xl} 8.0.0 or later`);
 					println("");
-					println("Please upgrade your XL instance to 8.0.0 or later and then retry.");
+					println(`Please upgrade your ${_xl} instance to 8.0.0 or later and then retry.`);
 					println("");
 					println("Or (if you prefer): Re-start from step 1 and answer 'n' to the question about target password migration.");
 					println("                    You will need to enter the passwords for each target by hand in this case.");
@@ -499,6 +593,17 @@ if ( !args_["skip-passwords"]) {
 
 
 // ====================================================================================
+
+function countDiscoveredVms(db, targetName) {
+	var rtn = 0;
+	db.query("select json from groups where displayName = 'Discovered virtual machine'").forEach(row => {
+		var g = JSON.parse(row.json);
+		if (g.source.displayName.toLowerCase() === targetName.toLowerCase()) {
+			rtn = g.entitiesCount;
+		}
+	});
+	return rtn;
+}
 
 if (checkDiscoveryState) {
 
@@ -537,9 +642,13 @@ if (checkDiscoveryState) {
 			if (t.status === "Validated") {
 				var n = groupsPerTarget[t.uuid];
 				if (n === 0 || n === undefined) {
-					var name = lib.getTargetName(t);
-					warning("Warning: target '"+name+"' discovery appears incomplete");
-					warnings += 1;
+					if (t.type === "vCenter" && countDiscoveredVms(sourceDb, t.displayName) === 0) {
+						// ignore it - there are no VMs in classic anyway
+					} else {
+						var name = lib.getTargetName(t);
+						warning("Warning: target '"+name+"' discovery appears incomplete");
+						warnings += 1;
+					}
 				}
 			}
 		});
@@ -572,6 +681,10 @@ lib.createSettingsPolicyTables(db);
 var policyNameByUuid = { };
 var policyUuidsByScopeUuid = { };
 var policiesWithBrokenScope = [ ];
+var policyErrors = { };
+
+var _yellow = collect(function() { colour("hiYellow"); })[2];
+var _white = collect(function() { colour("white"); })[2];
 
 client.getSettingsPolicies().forEach(t => {
 	if (t.readOnly === true) {
@@ -592,6 +705,11 @@ client.getSettingsPolicies().forEach(t => {
 		var ok = true;
 		(t.scopes || []).forEach(s => {
 			if (s.displayName === "VMT_SETTINGS_POLICY_FAKE_GROUP") {
+				policyErrors[`Policy '${t.displayName}' is scoped to a group that has been deleted`] = true;
+				ok = false;
+			}
+			if (isDefaultGroupThatThrowsError(s.uuid)) {
+				policyErrors[`Policy '${t.displayName}' is scoped to un-migratable group '${s.displayName}'`] = true;
 				ok = false;
 			}
 		});
@@ -601,9 +719,20 @@ client.getSettingsPolicies().forEach(t => {
 	}
 });
 
+policyErrors = _.keys(policyErrors);
+policyErrors.sort();
+
 saveMapping("settings_types", lib.saveSettingsMapping, null);
 
 println("");
+
+if (policyErrors.length > 0) {
+	println("");
+	warning("Warning: The following policy scope errors were detected:");
+	policyErrors.forEach(p => { warning(sprintf("   - %v", p)); });
+	colour();
+	println("\n(we recommend that you fix the issue(s) and then re-run this step)\n");
+}
 
 policiesWithBrokenScope.sort((a, b) => {
 	var aa = a.displayName.toLowerCase();
@@ -655,9 +784,10 @@ try {
 		}
 	});
 } catch (ex) {
+	printJson(ex);
 	error("Error: unable to collect placement policies (API reported a failure)");
 	println("Please confirm that you can see the expected placement policies in the UI and");
-	println("fix them and re-run this script before attempting migration of policies.");
+	println("fix them and re-run this script before moving to the next step.");
 }
 
 
@@ -719,21 +849,22 @@ db.query(`
 
 title("Collecting group members");
 
-if (!client.isXL()) {
-	bar();
-	var groups = _.deepClone(loadCsv("defaultGroups.csv"));
-	groups.shift();
-
-	groups.forEach(row => {
-//		if (row[2].match(/^GROUP-[A-Za-z]*By[A-Za-z]*$/) || cm.defaultGroupsByName[row[2].trimPrefix("GROUP-")] !== undefined) {
-		if (row[2].match(/^GROUP-[A-Za-z]*$/) || cm.defaultGroupsByName[row[2].trimPrefix("GROUP-")] !== undefined) {
-			defaultGroupUuids[row[0]] = row[2];
-		}
-	});
-}
+//if (!client.isXL()) {
+//	bar();
+//	var groups = _.deepClone(loadCsv("defaultGroups.csv"));
+//	groups.shift();
+//
+//	groups.forEach(row => {
+////		if (row[2].match(/^GROUP-[A-Za-z]*By[A-Za-z]*$/) || cm.defaultGroupsByName[row[2].trimPrefix("GROUP-")] !== undefined) {
+//		if (row[2].match(/^GROUP-[A-Za-z]*$/) || cm.defaultGroupsByName[row[2].trimPrefix("GROUP-")] !== undefined) {
+//			defaultGroupUuids[row[0]] = row[2];
+//		}
+//	});
+//}
 
 try {
-	client.getMembersByGroupUuid("GROUP-MyGroups", {include_aspects: false}).forEach(g => {
+	var opts = { };
+	client.paginate("getMembersByGroupUuid", "GROUP-MyGroups", opts, g => {
 		var include = true;
 
 		lib.nameMap.excluded_group_names_res.forEach(re => {
@@ -753,7 +884,7 @@ try {
 			myGroupsByName[g.displayName] = g;
 		}
 	});
-} catch(ex) { }
+} catch(ex) { printJson(ex); }
 
 var missingScopeUuids = { };
 
@@ -761,7 +892,7 @@ var order = 0;
 while (true) {
 	var n = 0;
 	order += 1;
-
+	hash();
 	_.keys(neededGroups).forEach(uuid => {
 		if (cachedGroups[uuid]) {
 			return;
@@ -817,16 +948,19 @@ while (true) {
 			if (getenv("show_group_errors")) { // -- dev/debug aid
 				println("");
 				ex.g_uuid = uuid;
+				ex.g_from = neededGroups[uuid][0];
 				printJson(ex);
 			}
 		}
 	});
 
+	// that didnt result in any more groups - so exit the loop
 	if (n === 0) { break; }
 }
+println();
 
 if (client.isXL()) {
-	hash();
+	title("Collecting groups and clusters");
 	lib.getInstancesOfType(client, [ "Group", "Cluster" ], g => {
 		var n = parseInt(db.query("select count(*) n from groups where uuid = ?", [g.uuid])[0].n);
 		if (n === 0) {
@@ -834,10 +968,11 @@ if (client.isXL()) {
 			saveGroup(db, g, -1, [""]);
 		}
 	});
+	println();
 
-	hash();
 	// Some entities have different naming conventions in classic and XL so we need them all :)
 	var n = 0;
+	title("Collecting application components and DB servers");
 	lib.getInstancesOfType(client, [ "ApplicationComponent", "DatabaseServer" ], e => {
 		print(".");
 		lib.saveEntity(db, e);
@@ -851,47 +986,50 @@ policiesWithBrokenScope.forEach(p => {
 	missingScopeUuids[p.uuid] = true;
 });
 
+// policies with missing scopes
 missingScopeUuids = _.keys(missingScopeUuids);
+
 if (missingScopeUuids.length > 0) {
 	var badPolicies = { };
 	var badTargets = { };
 	missingScopeUuids.forEach(u => {
-		_.keys(targetUuidsByScopeUuid[u] || []).forEach(p => {
-			badTargets[targetNameByUuid[p]] = true;
-		});
-		_.keys(policyUuidsByScopeUuid[u] || []).forEach(p => {
-			badPolicies[policyNameByUuid[p]] = true;
-		});
+		var tn = targetNameByUuid[u];
+		if (tn) {
+			badTargets[tn] = true;
+		}
+		var pn = policyNameByUuid[u];
+		if (pn) {
+			badPolicies[pn] = true;
+		}
 	});
+
 	badPolicies = _.keys(badPolicies);
 	badPolicies.sort();
 	badTargets = _.keys(badTargets);
 	badTargets.sort();
 	var fixNeeded = false;
-	if (badPolicies.length > 0) {
-		println(""); println("");
-		colour("hiyellow");
-		println("Warning: The following policies are scoped to missing groups..");
-		badPolicies.forEach(p => { printf("   - '%v'\n", p); });
-		colour();
-		fixNeeded = true;
-	}
+
+//	if (badPolicies.length > 0) {
+//		println(""); println("");
+//		colour("hiyellow");
+//		println("Warning: The following policies are scoped to missing or un-migratable groups..");
+//		badPolicies.forEach(p => { printf("   - '%v'\n", p); });
+//		colour();
+//		fixNeeded = true;
+//	}
+
 	if (badTargets.length > 0) {
 		if (!fixNeeded) { println(""); }
 		println("");
-		colour("hiyellow");
-		println("Warning: The following targets are scoped to missing groups..");
-		badTargets.forEach(p => { printf("   - '%v'\n", p); });
-		colour();
+		warning("Warning: The following targets are scoped to missing or un-migratable groups..");
+		badTargets.forEach(p => { warning(sprintf("   - '%v'\n", p)); });
 		fixNeeded = true;
 	}
 
 	if (fixNeeded) {
-		println("\n(we recommend that you fix the issue(s) and then re-run this step)");
+		println("\n(we recommend that you fix the issue(s) and then re-run this step)\n");
 	}
 }
-
-println("");
 
 
 // ====================================================================================
@@ -1031,8 +1169,6 @@ if (sourceDb !== null) {
 				foundUuid = row2.uuid;
 				how = "db";
 			});
-
-//printf("map group >> %s [%v]\n", row.displayName, foundUuid);
 
 			if (foundUuid === null) {
 				var found = client.findByName(row.className, mappedName);

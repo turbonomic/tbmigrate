@@ -1,10 +1,11 @@
-Version 3.15
-Tue 18 May 20:41:50 BST 2021
-BINS_DIR = /home/turbo/tbmigrate/3.9/tbmigrate/bin/.exe
-commit e0a948545595d03cddf6647f40f83143ba40facb (HEAD -> tbmigrate-3.x-fixes, origin/tbmigrate-3.x-fixes)
+Version 4.1
+Fri 20 Aug 10:51:14 BST 2021
+BINS_DIR = /home/turbo/gopath/bin/static
+commit cfcffffa46c2800beb5103ea8d10573e331fdafb (HEAD -> master, origin/master, origin/HEAD)
 Author: Chris Lowth <chris.lowth@turbonomic.com>
-Date:   Tue May 18 20:35:31 2021 +0100
+Date:   Fri Aug 20 10:08:59 2021 +0100
 
-    tbmigrate 3.15 pre-release for testing.
+    TbMigrate 4.1
     
-    Fixes the issue of Error 400 when creating HCI host templates by introducing a list of supported fields by release - extracted from the XL source code.
+    Fixes to tbmigrate REVIEW docs.
+    Added "screenshot" command to tbutil (experimental - do not use in production).

@@ -1,12 +1,12 @@
 #! /bin/bash
 
-yellow=`setterm -foreground yellow -bold on`
-green=`setterm -foreground green -bold on`
-blue=`setterm -foreground blue -bold on`
-red=`setterm -foreground red -bold on`
-bold=`setterm -bold on`
-reset=`setterm -default`
-white=`setterm -foreground white -bold on`
+export yellow=`setterm -foreground yellow -bold on`
+export green=`setterm -foreground green -bold on`
+export blue=`setterm -foreground blue -bold on`
+export red=`setterm -foreground red -bold on`
+export bold=`setterm -bold on`
+export reset=`setterm -default`
+export white=`setterm -foreground white -bold on`
 
 export width
 
@@ -20,7 +20,12 @@ if [ "$TERM" = "xterm" ]; then
 	export TERM=xterm-256color
 fi
 
+set -a
 . ./.env
+export _classic="$branding_classic"
+export _xl="$branding_xl"
+export _vendor="$branding_vendor"
+export _product="$branding_product"
 
 savedcreds="$HOME/tbmigrate-tbutil-credentials.json"
 if [ -f "$savedcreds" ] && [ ! -f "$datadir/tbutil-credentials.json" ]; then
@@ -35,16 +40,6 @@ if [ -f "$savedcreds" ] && [ ! -f "$datadir/tbutil-credentials.json" ]; then
 		./bin/tbutil "$xl_cred" get /search/criteria > "$datadir"/xl-search-criteria.json
 	fi
 fi
-
-productName() {
-	nCisco=`sqlite3 "$classic_db" 'select * from metadata where name = "version"' 2>&1 | fgrep -ic "cisco workload optimization manager"`
-	nTurbo=`sqlite3 "$classic_db" 'select * from metadata where name = "version"' 2>&1 | fgrep -ic "turbonomic operations manager"`
-	if [ $nCisco = 1 ] && [ $nTurbo = 0 ]; then
-		echo CWOM
-		return
-	fi
-	echo Turbonomic
-}
 
 run() {
 	clear
@@ -110,36 +105,36 @@ while : ; do
 		run sh migrate-targets.sh 1
 		stat=$?
 		if [ $stat != 1 ] && [ $stat != 22 ]; then
-			echo
-			x="${yellow}*${reset}"
-			echo "${yellow}***********************************************************************"
-			echo "*                                 NOTE                                *"
-			echo "***********************************************************************${reset}"
-			echo "$x You should wait until discovery of the new targets is 100% complete $x"
-			echo "$x before progressing to the next step. You can monitor progress using $x"
-			echo "$x the UI, and waiting until you see that the supply chain etc are     $x"
-			echo "$x fully populated.                                                    $x"
-			echo "$x                                                                     $x"
-			echo "$x We recommend that you wait AT LEAST ${min_discovery_wait_mins} minutes (though longer may   $x"
-			echo "$x be needed for large topologies).                                    $x"
-			echo "$x                                                                     $x"
-			echo "$x Please review the created targets before continuing to the next     $x"
-			echo "$x step. Information on how to do this is available in the 'REVIEWING  $x"
-			echo "$x TARGETS' section of the web page ...                                $x"
-			echo "$x                                                                     $x"
-			echo "$x  ${yellow}https://github.com/turbonomic/tbmigrate/blob/master/REVIEW.md      $x"
-			echo "$x                                                                     $x"
-			echo "$x or in the 'Review migration results' document which can be viewed   $x"
-			echo "$x from the main menu.                                                 $x"
-			echo "${yellow}***********************************************************************${reset}"
-			echo
+			(
+				echo "NOTE"
+				echo ""
+				echo "You should wait until discovery of the new targets is 100% complete"
+				echo "before progressing to the next step. You can monitor progress using"
+				echo "the UI, and waiting until you see that the supply chain etc are"
+				echo "fully populated."
+				echo ""
+				echo "We recommend that you wait AT LEAST ${min_discovery_wait_mins} minutes (though longer may"
+				echo "be needed for medium or large topologies)."
+				echo ""
+				echo "Please review the created targets before continuing to the next"
+				echo "step. Information on how to do this is available in the 'REVIEWING"
+				echo "TARGETS' section of the web page ..."
+				echo ""
+				echo " ${branding_review_url}"
+				echo ""
+				echo "or in the 'Review migration results' document which can be viewed"
+				echo "from the main menu."
+			) | ${bindir}/viewer -box
 		fi
 
-	elif [ "$opt" = "collect-2" ]; then
-		age=$(bin/tbscript @null js/db-stats.js xl1_target_age)
+		elif [ "$opt" = "match" ]; then
+			run sh match-targets.sh
+
+		elif [ "$opt" = "collect-2" ]; then
+		age=$(bin/tbscript js/db-stats.js xl1_target_age)
 		if [ "$age" -lt ${min_discovery_wait_mins} ]; then
 			echo
-			echo "${red}Error: it's been $age mins since the last target was migrated to XL.${reset}"
+			echo "${red}Error: it's been $age mins since the last target was migrated to $_xl.${reset}"
 			echo
 			echo "${yellow}You should wait ${red}at least ${min_discovery_wait_mins} mins${yellow} for discovery to complete.${reset}"
 			echo
@@ -150,7 +145,7 @@ while : ; do
 			echo "${yellow}***********************************************************************"
 			echo "*                             PLEASE CONFIRM                          *"
 			echo "***********************************************************************${reset}"
-			echo -n "Has the `productName` XL instance finished discovering the topology (y/n)? "
+			echo -n "Has the $_xl instance finished discovering the topology (y/n)? "
 			read yn || continue
 			if [ "$yn" = "y" ]; then
 				run sh collect-data.sh 2
@@ -166,7 +161,7 @@ while : ; do
 		echo "${yellow}***********************************************************************"
 		echo "*                             PLEASE CONFIRM                          *"
 		echo "***********************************************************************${reset}"
-		echo -n "Has the `productName` XL instance finished discovering the topology (y/n)? "
+		echo -n "Has the $_xl instance finished discovering the topology (y/n)? "
 		read yn || continue
 		if [ "$yn" = "y" ]; then
 			run sh collect-data.sh 2
@@ -179,21 +174,18 @@ while : ; do
 	elif [ "$opt" = "groups-1" ]; then
 		run sh migrate-groups.sh -i 1
 		if [ $? != 1 ]; then
-			x="${yellow}*${reset}"
-			echo
-			echo "${yellow}***********************************************************************"
-			echo "*                                 NOTE                                *"
-			echo "***********************************************************************${reset}"
-			echo "$x Please review the created groups before continuing to the next      $x"
-			echo "$x step. Information on how to do this is available in the 'REVIEWING  $x"
-			echo "$x GROUPS' section of the web page ...                                 $x"
-			echo "$x                                                                     $x"
-			echo "$x  ${yellow}https://github.com/turbonomic/tbmigrate/blob/master/REVIEW.md      $x"
-			echo "$x                                                                     $x"
-			echo "$x or in the 'Review migration results' document which can be viewed   $x"
-			echo "$x from the main menu.                                                 $x"
-			echo "${yellow}***********************************************************************${reset}"
-			echo
+			(
+				echo "NOTE"
+				echo ""
+				echo "Please review the created groups before continuing to the next"
+				echo "step. Information on how to do this is available in the 'REVIEWING"
+				echo "GROUPS' section of the web page ..."
+				echo ""
+				echo " ${branding_review_url}"
+				echo ""
+				echo "or in the 'Review migration results' document which can be viewed"
+				echo "from the main menu."
+			) | ${bindir}/viewer -box
 		fi
 
 	elif [ "$opt" = "review-groups-1" ]; then
@@ -202,36 +194,33 @@ while : ; do
 	elif [ "$opt" = "targets-2" ]; then
 		run sh migrate-targets.sh 2
 		if [ $? != 1 ]; then
-			x="${yellow}*${reset}"
-			echo
-			echo "${yellow}***********************************************************************"
-			echo "*                                 NOTE                                *"
-			echo "***********************************************************************${reset}"
-			echo "$x You should wait until discovery of the new targets is 100% complete $x"
-			echo "$x before progressing to the next step. You can monitor progress using $x"
-			echo "$x the UI, and waiting until you see that the supply chain is fully    $x"
-			echo "$x populated.                                                          $x"
-			echo "$x                                                                     $x"
-			echo "$x We recommend that you wait AT LEAST ${min_discovery_wait_mins} minutes (though longer may   $x"
-			echo "$x be needed for large topologies)                                     $x"
-			echo "$x                                                                     $x"
-			echo "$x Please re-review the created targets before continuing to the next  $x"
-			echo "$x step. Information on how to do this is available in the 'REVIEWING  $x"
-			echo "$x TARGETS' section of the web page ...                                $x"
-			echo "$x                                                                     $x"
-			echo "$x  ${yellow}https://github.com/turbonomic/tbmigrate/blob/master/REVIEW.md      $x"
-			echo "$x                                                                     $x"
-			echo "$x or in the 'Review migration results' document which can be viewed   $x"
-			echo "$x from the main menu.                                                 $x"
-			echo "${yellow}***********************************************************************${reset}"
-			echo
+			(
+				echo "NOTE"
+				echo ""
+				echo "You should wait until discovery of the new targets is 100% complete"
+				echo "before progressing to the next step. You can monitor progress using"
+				echo "the UI, and waiting until you see that the supply chain is fully"
+				echo "populated."
+				echo ""
+				echo "We recommend that you wait AT LEAST ${min_discovery_wait_mins} minutes (though longer may"
+				echo "be needed for medium or large topologies)"
+				echo ""
+				echo "Please re-review the created targets before continuing to the next"
+				echo "step. Information on how to do this is available in the 'REVIEWING"
+				echo "TARGETS' section of the web page ..."
+				echo ""
+				echo " ${branding_review_url}"
+				echo ""
+				echo "or in the 'Review migration results' document which can be viewed"
+				echo "from the main menu."
+			) | ${bindir}/viewer -box
 		fi
 
 	elif [ "$opt" = "collect-3" ]; then
-		age=$(bin/tbscript @null js/db-stats.js xl2_target_age)
+		age=$(bin/tbscript js/db-stats.js xl2_target_age)
 		if [ "$age" -lt ${min_discovery_wait_mins} ]; then
 			echo
-			echo "${red}Error: it's been $age mins since the last target was migrated to XL.${reset}"
+			echo "${red}Error: it's been $age mins since the last target was migrated to $_xl.${reset}"
 			echo
 			echo "${yellow}You should wait ${red}at least ${min_discovery_wait_mins} mins${yellow} for discovery to complete.${reset}"
 			echo
@@ -271,75 +260,64 @@ while : ; do
 	elif [ "$opt" = "groups-2" ]; then
 		run sh migrate-groups.sh -i 2
 		if [ $? != 1 ]; then
-			x="${yellow}*${reset}"
-			echo
-			echo "${yellow}***********************************************************************"
-			echo "*                                 NOTE                                *"
-			echo "***********************************************************************${reset}"
-			echo "$x Please review the created groups before continuing to the next      $x"
-			echo "$x step. Information on how to do this is available in the 'REVIEWING  $x"
-			echo "$x GROUPS' section of the web page ...                                 $x"
-			echo "$x                                                                     $x"
-			echo "$x  ${yellow}https://github.com/turbonomic/tbmigrate/blob/master/REVIEW.md      $x"
-			echo "$x                                                                     $x"
-			echo "$x or in the 'Review migration results' document which can be viewed   $x"
-			echo "$x from the main menu.                                                 $x"
-			echo "${yellow}***********************************************************************${reset}"
-			echo
+			(
+				echo "NOTE"
+				echo ""
+				echo "Please review the created groups before continuing to the next"
+				echo "step. Information on how to do this is available in the 'REVIEWING"
+				echo "GROUPS' section of the web page ..."
+				echo ""
+				echo " ${branding_review_url}"
+				echo ""
+				echo "or in the 'Review migration results' document which can be viewed"
+				echo "from the main menu."
+				) | ${bindir}/viewer -box
 		fi
 
 	elif [ "$opt" = "templates" ]; then
 		run sh migrate-templates.sh
-		x="${yellow}*${reset}"
-		echo
-		echo "${yellow}***********************************************************************"
-		echo "*                                 NOTE                                *"
-		echo "***********************************************************************${reset}"
-		echo "$x Please review the created templates before continuing to the next   $x"
-		echo "$x step. Information on how to do this is available in the 'REVIEWING  $x"
-		echo "$x TEMPLATES' section of the web page ...                              $x"
-		echo "$x                                                                     $x"
-		echo "$x  ${yellow}https://github.com/turbonomic/tbmigrate/blob/master/REVIEW.md      $x"
-		echo "$x                                                                     $x"
-		echo "$x or in the 'Review migration results' document which can be viewed   $x"
-		echo "$x from the main menu.                                                 $x"
-		echo "${yellow}***********************************************************************${reset}"
-		echo
+		(
+			echo "NOTE"
+			echo ""
+			echo "Please review the created templates before continuing to the next"
+			echo "step. Information on how to do this is available in the 'REVIEWING"
+			echo "TEMPLATES' section of the web page ..."
+			echo ""
+			echo " ${branding_review_url}"
+			echo ""
+			echo "or in the 'Review migration results' document which can be viewed"
+			echo "from the main menu."
+		) | ${bindir}/viewer -box
 
 	elif [ "$opt" = "policies" ]; then
 		run sh migrate-policies.sh
-		x="${yellow}*${reset}"
-		echo
-		echo "${yellow}***********************************************************************"
-		echo "*                                 NOTE                                *"
-		echo "***********************************************************************${reset}"
-		echo "$x Please review the created policies before continuing to the next    $x"
-		echo "$x step. Information on how to do this is available in the 'REVIEWING  $x"
-		echo "$x POLICIES' and 'REVIEWING ACTION SCRIPTS' sections of the web page:  $x"
-		echo "$x                                                                     $x"
-		echo "$x  ${yellow}https://github.com/turbonomic/tbmigrate/blob/master/REVIEW.md      $x"
-		echo "$x                                                                     $x"
-		echo "$x or in the 'Review migration results' document which can be viewed   $x"
-		echo "$x from the main menu.                                                 $x"
-		echo "${yellow}***********************************************************************${reset}"
-		echo
+		(
+			echo "NOTE"
+			echo ""
+			echo "Please review the created policies before continuing to the next"
+			echo "step. Information on how to do this is available in the 'REVIEWING"
+			echo "POLICIES' and 'REVIEWING ACTION SCRIPTS' sections of the web page:"
+			echo ""
+			echo " ${branding_review_url}"
+			echo ""
+			echo "or in the 'Review migration results' document which can be viewed"
+			echo "from the main menu."
+		) | ${bindir}/viewer -box
 
 	elif [ "$opt" = "users" ]; then
 		run sh migrate-users.sh
-		echo
-		echo "${yellow}***********************************************************************"
-		echo "*                                 NOTE                                *"
-		echo "***********************************************************************${reset}"
-		echo "$x Please review the created users and user groups  before continuing  $x"
-		echo "$x to the next step. Information on how to do this is available in the $x"
-		echo "$x 'REVIEWING USERS AND USER GROUPS' section of the web page ...       $x"
-		echo "$x                                                                     $x"
-		echo "$x  ${yellow}https://github.com/turbonomic/tbmigrate/blob/master/REVIEW.md      $x"
-		echo "$x                                                                     $x"
-		echo "$x or in the 'Review migration results' document which can be viewed   $x"
-		echo "$x from the main menu.                                                 $x"
-		echo "${yellow}***********************************************************************${reset}"
-		echo
+		(
+			echo "NOTE"
+			echo ""
+			echo "Please review the created users and user groups  before continuing"
+			echo "to the next step. Information on how to do this is available in the"
+			echo "'REVIEWING USERS AND USER GROUPS' section of the web page ..."
+			echo ""
+			echo " ${branding_review_url}"
+			echo ""
+			echo "or in the 'Review migration results' document which can be viewed"
+			echo "from the main menu."
+		) | ${bindir}/viewer -box
 
 	elif [ "$opt" = "expose-classic-report" ]; then
 		cp reports/classic.html /var/www/html/tbmigrate-report.html
@@ -362,8 +340,8 @@ while : ; do
 		fi
 
 	elif [ "$opt" = "review" ]; then
-		bin/viewer -m "Reviewing The Migration Results" cat REVIEW.md
 		waitAtEnd=false
+		bin/viewer -m "Reviewing The Migration Results" "$tbscript" "$jsdir/review.js" || waitAtEnd=true
 
 	elif [ $(expr "$opt" : "viewlog ") = 8 ]; then
 		eval $opt

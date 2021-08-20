@@ -6,13 +6,16 @@ var lib = require("./libmigrate.js");
 var cm = require("./group-creation-map.js");
 cm.set("lib", lib);
 
+var _classic = lib._classic;
+var _xl = lib._xl;
+
 var fn = require("@/functions");
 
 var sql1 = `select * from groups_plus where displayName not regexp ? order by order_ desc`;
 var sql2 = `select * from groups g, group_uuid_mapping m where m.classicUuid = ? and m.xlUuid = g.uuid`;
 var sql3 = `select * from groups where displayName = ?`;
 
-var headers = [ "Name", "Category", ">Size: Classic", ">XL", ">Diff", "Type" ];
+var headers = [ "Name", "Category", ">Size: "+_classic, ">"+_xl, ">Diff", "Type" ];
 var rows = [ ];
 
 var inViewer = getenv("IN_VIEWER") === "true";
@@ -53,7 +56,7 @@ classicDb.query(sql1, [ lib.nameMap.excluded_group_names_re ]).forEach(classicGr
 
 	if (xlGroup !== null) {
 		var t2 = xlGroup.isStatic === "1" ? "static" : "dynamic";
-		type = (t1 === t2) ? t1 : t1 + " ("+red+t2+" in XL"+sgr0+")";
+		type = (t1 === t2) ? t1 : t1 + " ("+red+t2+" in "+_xl+sgr0+")";
 		if (classicGroup.category) {
 			type = t2;
 		}
@@ -67,10 +70,12 @@ classicDb.query(sql1, [ lib.nameMap.excluded_group_names_re ]).forEach(classicGr
 			replace(/^(PhysicalMachine|PMs)By/, "PMBy").
 			replace("By", " By ");
 		if (xlGroup !== null) {
-			if (type === "static") {
-				type = "system ("+red+"static in XL"+sgr0+")";
+			if (JSON.parse(xlGroup.json).groupOrigin === "DISCOVERED") {
+				type = "system";
+			} else if (type === "static") {
+				type = "system ("+red+"static in "+_xl+sgr0+")";
 			} else if (type === "dynamic") {
-				type = "system (dynamic in XL)";
+				type = "system (dynamic in "+_xl+")";
 			}
 		} else {
 			type = "system";

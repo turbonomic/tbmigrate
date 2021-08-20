@@ -3,10 +3,14 @@
 /* jshint -W119 */
 /* globals title, warning, success, error */
 
+var lib = require("./libmigrate");
+var _classic = lib._classic;
+var _xl = lib._xl;
+
 if (args.length !== 2) {
 	println("Usage is:");
 	println("");
-	println("   ../bin/tbscript @xl migrate-templates.js {classic-db-file} {xl-db-file}");
+	printf ("   ../bin/tbscript @xl migrate-templates.js {%s-db-file} {%s-db-file}\n", _classic.toLowerCase(), _xl.toLowerCase());
 	println("");
 	exit(2);
 }
@@ -14,7 +18,6 @@ if (args.length !== 2) {
 var P = plugin("sqlite3-plugin");
 var classicDb = P.open("file:"+args[0]+"?mode=rw");
 var xlDb = P.open("file:"+args[1]+"?mode=rw");
-var lib = require("./libmigrate");
 
 // The file read in here needs to be re-created by running dev-tools/get-template-specs.sh when new versions
 // of Turbonomic are released.

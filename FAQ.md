@@ -10,7 +10,7 @@ We always recommend using the latest available version.
 
 You can find the documentation in the Turbonomic Installation Guide under Appendix C which is [available here.](https://docs.turbonomic.com)
 
-Notes on reviewing the migration results [can be read here](../master/REVIEW.md).
+Notes on reviewing the migration results [can be read here](src/REVIEW-CLASSIC_TO_XL.md).
 
 ## There is an error, what should I do?
 
@@ -73,4 +73,4 @@ Avoid the problem using the old DevOps favourite utility: ["screen"](https://blo
 
 ## How can I check the results of the migration?
 
-Detailed notes on reviewing the migration [can be read here](../master/REVIEW.md).
+Detailed notes on reviewing the migration [can be read here](src/REVIEW-CLASSIC_TO_XL.md).

@@ -1,3 +1,5 @@
+// :credentials: not_required
+
 var P = plugin("sqlite3-plugin");
 
 var stats = { };
@@ -30,6 +32,10 @@ function inspect(dbName) {
 			stats[sprintf("%s_targets_migrated", dbName)] = parseInt(row.n);
 		});
 
+		db.query(`select count(*) n from metadata where name = "match_targets_end_time"`).forEach(row => {
+			stats[sprintf("%s_targets_matched", dbName)] = parseInt(row.n);
+		});
+
 		db.query(`select count(*) n from metadata where name = "migrate_groups_end_time"`).forEach(row => {
 			stats[sprintf("%s_groups_migrated", dbName)] = parseInt(row.n);
 		});
@@ -60,6 +66,10 @@ function inspect(dbName) {
 
 		db.query(`select count(*) n from metadata where name = "targets_2_confirmed" and json = "true"`).forEach(row => {
 			stats[sprintf("%s_targets_2_confirmed", dbName)] = parseInt(row.n);
+		});
+
+		db.query(`select count(*) n from metadata where name = "isIwo" and json = "true"`).forEach(row => {
+			stats[sprintf("%s_isIwo", dbName)] = parseInt(row.n);
 		});
 
 		var ts = 0;
@@ -97,41 +107,56 @@ function fileExists(file) {
 }
 
 
+var isIwo = stats.xl1_isIwo === 1 || getenv("branding_isIwo") === "true";
+
+stats.iwo = isIwo;
+
 stats.credsReady = true;
 stats.credsDone = fileExists("data/tbutil-credentials.json") && fileExists("data/xl-search-criteria.json");
 
 stats.collect1Ready = stats.credsDone;
 stats.collect1Done = stats.xl1_db_ok === 1 && fileExists("logs/xl-collect-1.log") && !fileExists("data/.redo-collect-1");
+stats.collect1Needed = 1;
 
-stats.targets1Ready = stats.credsDone && stats.collect1Done;
-stats.targets1Done = stats.xl1_targets_migrated === 1 && stats.collect1Done;
+stats.targets1Ready = !isIwo && stats.credsDone && stats.collect1Done;
+stats.targets1Done = !isIwo && stats.xl1_targets_migrated === 1 && stats.collect1Done;
+stats.targets1Needed = !isIwo;
 
-stats.collect2Ready = stats.targets1Done;
-stats.collect2Done = stats.xl2_db_ok === 1 && stats.collect2Ready && fileExists("logs/xl-collect-2.log");
+stats.matchReady = isIwo && stats.credsDone && stats.collect1Done;
+stats.matchDone = isIwo && stats.xl1_targets_matched === 1 && stats.collect1Done;
+stats.matchNeeded = isIwo;
 
-stats.groups1Ready = stats.collect2Done;
+stats.collect2Ready = !isIwo && stats.targets1Done;
+stats.collect2Done = !isIwo && stats.xl2_db_ok === 1 && stats.collect2Ready && fileExists("logs/xl-collect-2.log");
+stats.collect2Needed = !isIwo;
+
+stats.groups1Ready = stats.collect2Done || (stats.matchDone && isIwo);
 stats.groups1Done = stats.xl2_groups_migrated === 1 && stats.groups1Ready;
+stats.groups1Needed = 1;
 
-stats.targets2Ready = stats.groups1Done;
-stats.targets2Done = stats.targets2Ready && fileExists("logs/migrate-targets-2.log");
-stats.targets2Needed = stats.classic_num_target_scopes  > 0 || stats.classic_db_ok === 0;
+stats.targets2Ready = !isIwo && stats.groups1Done;
+stats.targets2Done = !isIwo && stats.targets2Ready && fileExists("logs/migrate-targets-2.log");
+stats.targets2Needed = !isIwo && (stats.classic_num_target_scopes  > 0 || stats.classic_db_ok === 0);
 
-stats.collect3Ready = stats.targets2Done;
-stats.collect3Done = stats.xl3_db_ok === 1 && stats.collect3Ready && fileExists("logs/xl-collect-3.log");
-stats.collect3Needed = stats.targets2Needed;
+stats.collect3Ready = !isIwo && stats.targets2Done;
+stats.collect3Done = !isIwo && stats.xl3_db_ok === 1 && stats.collect3Ready && fileExists("logs/xl-collect-3.log");
+stats.collect3Needed = !isIwo && stats.targets2Needed;
 
-stats.groups2Ready = stats.collect3Done; 
-stats.groups2Done = stats.xl3_groups_migrated === 1 && stats.groups2Ready;
-stats.groups2Needed = stats.targets2Needed;
+stats.groups2Ready = !isIwo && stats.collect3Done; 
+stats.groups2Done = !isIwo && stats.xl3_groups_migrated === 1 && stats.groups2Ready;
+stats.groups2Needed = !isIwo && stats.targets2Needed;
 
-stats.templatesReady = stats.collect3Done || (stats.collect2Done && !stats.targets2Needed);
+stats.templatesReady = stats.collect3Done || (stats.collect2Done && !stats.targets2Needed) || (stats.groups1Done && isIwo);
 stats.templatesDone = stats.xl3_templates_migrated === 1;
+stats.templatesNeeded = 1;
 
-stats.policiesReady = (stats.collect3Done && stats.groups2Done) || (stats.collect2Done && !stats.targets2Needed && stats.groups1Done);
+stats.policiesReady = (stats.collect3Done && stats.groups2Done) || (stats.collect2Done && !stats.targets2Needed && stats.groups1Done) || (isIwo && stats.groups1Done);
 stats.policiesDone = stats.xl3_policies_migrated === 1;
+stats.policiesNeeded = 1;
 
-stats.usersReady = (stats.collect3Done && stats.groups2Done) || (stats.collect2Done && !stats.targets2Needed && stats.groups1Done);
-stats.usersDone  = stats.xl3_users_migrated === 1;
+stats.usersReady = !isIwo && (stats.collect3Done && stats.groups2Done) || (stats.collect2Done && !stats.targets2Needed && stats.groups1Done);
+stats.usersDone  = !isIwo && stats.xl3_users_migrated === 1;
+stats.usersNeeded = !isIwo;
 
 stats.reviewGroupsReady = stats.collect1Done;
 

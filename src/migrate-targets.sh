@@ -28,7 +28,7 @@ fi
 phase1() {
 	ready=$(bin/tbscript @null js/db-stats.js targets1Ready 2>/dev/null)
 	if [ "$force" = "false" ] && [ "$ready" != "true" ]; then
-		echo "Not ready to run 'migrate-targets.sh 1' yet - refer to the documentation for the correct order"
+		echo "Not ready to run 'migrate-targets (1)' yet - refer to the documentation for the correct order"
 		exit 2
 	fi
 
@@ -53,7 +53,7 @@ phase1() {
 phase2() {
 	ready=$(bin/tbscript @null js/db-stats.js targets2Ready 2>/dev/null)
 	if [ "$force" = "false" ] && [ "$ready" != "true" ]; then
-		echo "Not ready to run 'migrate-targets.sh 2' yet - refer to the documentation for the correct order"
+		echo "Not ready to run 'migrate-targets (2)' yet - refer to the documentation for the correct order"
 		exit 2
 	fi
 
@@ -73,7 +73,7 @@ phase2() {
 if [ ! -r "$datadir"/tbutil-credentials.json ]; then
 	echo ""
 	echo "File not found: $datadir/tbutil-credentials.json"
-	echo "It looks as if you havent run 'sh setup.sh' yet."
+	echo "It looks as if you havent run 'setup' yet."
 	echo ""
 	exit 2
 fi

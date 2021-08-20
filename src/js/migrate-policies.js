@@ -3,14 +3,17 @@
 var F = require("@/functions");
 var lib = require("./libmigrate.js");
 
+var _classic = lib._classic;
+var _xl = lib._xl;
+
 usage = function() {
 	println("");
 	println("Usage is:");
 	println("");
-	println("  tbscript {xl-credentials} migrate-policies.js [options] {classic-db-file} {xl-db-file}");
+	printf ("  tbscript @xl migrate-policies.js [options] {%s-db-file} {%s-db-file}\n", _classic.toLowerCase(), _xl.toLowerCase());
 	println("");
 	println("  where options is any combination of:");
-	println("     -copy-all : copy all values from default policies (even those that havent changed in classic)");
+	println(`     -copy-all : copy all values from default policies (even those that havent changed in ${_classic})`);
 	println("");
 	exit(2);
 };
@@ -37,11 +40,11 @@ policyMap_csv.forEach(row => {
 		var key = row[0]+"|"+row[1]+"|"+row[3];
 		if (r5.hasPrefix("!")) {
 			policyMap[key] = {
-				warning: r5.trimPrefix("!").trimSpace()
+				warning: lib.cookString(r5.trimPrefix("!").trimSpace())
 			};
 		} else if (r5.hasPrefix("#")) {
 			policyMap[key] = {
-				warning: "'" + row[2]+"/"+row[4]+"' - Setting has no equivalent in XL"
+				warning: "'" + row[2]+"/"+row[4]+"' - Setting has no equivalent in "+_xl
 			};
 		} else {
 			policyMap[key] = {
@@ -132,6 +135,29 @@ function getValue(typeMap, type, manager, name) {
 }
 
 
+var settingMap = {
+	ApplicationComponent: {
+		automationmanager: {
+			scalingPolicy: {
+				PROVISION: "HORIZONTAL_SCALE"
+			}
+		}
+	}
+};
+
+
+function mapValue(changes, type, managerUuid, settingUuid) {
+	var value = changes[type][managerUuid][settingUuid];
+	try {
+		var mapped = settingMap[type][managerUuid][settingUuid][value];
+		if (mapped !== undefined) {
+			value = mapped;
+		}
+	} catch (ex) { }
+	return value;
+}
+
+
 var xlTypes = convertTypeListToMap(xlDb.query("select * from settings_types where isDefault order by displayName"));
 var classicTypes = convertTypeListToMap(classicDb.query("select * from settings_types where isDefault order by displayName"));
 
@@ -172,26 +198,14 @@ function processDefaultPolicies() {
 
 
 	println("");
-	subtitle("Checking classic vs XL default setting class equivalence");
+	subtitle(`Checking ${_classic} vs ${_xl} default setting class equivalence`);
 
 	_.keys(classicTypes).sort().forEach(type => {
 		var xlType = classicToXlType(type);
 		if (!xlTypes[xlType]) {
-			warning("    Warning: Policy '"+type+" defaults' exists in classic but has no equivalent in XL - not migrated");
+			warning(`    Warning: Policy '${type} defaults' exists in ${_classic} but has no equivalent in ${_xl} - not migrated`);
 		}
 	});
-
-/*
-	println("");
-	subtitle("Checking XL vs classic default setting class equivalence");
-
-	_.keys(xlTypes).sort().forEach(type => {
-		var classicType = xlToClassicType(type);
-		if (!classicTypes[classicType]) {
-			warning("    Warning: Policy '"+type+" defaults' exists in XL but has no equivalent in classic - nothing to migrate");
-		}
-	});
-*/
 
 	println("");
 	subtitle("Checking individual default setting equivalence");
@@ -202,9 +216,9 @@ function processDefaultPolicies() {
 			sm.settings.forEach(s => {
 				if (args_["copy-all"] || isChanged(s)) {
 					if (!setDefault(type, sm.uuid, s.uuid, s.value)) {
-						var name = sprintf("%v defaults::%v::%v", type, sm.displayName, s.displayName);
+						var name = `${type} defaults::${sm.displayName}::${s.displayName}`;
 						if (name !== "Storage defaults::Storage Settings::Datastore Browsing") {
-							warning(sprintf("    Warning: No setting for '%v' (%v)", name, s.value));
+							warning(`    Warning: No setting for '${name}' (${s.value})`);
 						}
 					}
 				}
@@ -229,15 +243,15 @@ function processDefaultPolicies() {
 
 			sm.settings.forEach(s => {
 				if (changes[type][sm.uuid][s.uuid] !== undefined) {
-					s.value = changes[type][sm.uuid][s.uuid];
-					success(sprintf("        %v = %v", s.displayName, s.value));
+					s.value = mapValue(changes, type, sm.uuid, s.uuid);
+					success(`        ${s.displayName} = ${s.value}`);
 					if (s.valueType === "NUMERIC") {
 						var value = parseFloat(s.value);
 						if (value > s.max) {
-							warning(sprintf("        Warning: Classic's value is larger than XL's allowed maximum - reducing to %v", s.max));
+							warning(`        Warning: ${_classic}'s value is larger than ${_xl}'s allowed maximum - reducing to ${s.max}`);
 							s.value = "" + s.max;
 						} else if (value < s.min) {
-							warning(sprintf("        Warning: Classic's value is less than XL's allowed minimum - raising to %v", s.min));
+							warning(`        Warning: ${_classic}'s value is less than ${_xl}'s allowed minimum - raising to ${s.min}`);
 							s.value = "" + s.min;
 						}
 					}
@@ -325,16 +339,16 @@ function mapScope(scope) {
 
 	if (numMappings === 0) {
 		if (scope.displayName === undefined || scope.displayName === "VMT_SETTINGS_POLICY_FAKE_GROUP") {
-			warning(sprintf("      Warning: Policy scoped to a non-existent group (uuid: %s)", scope.uuid));
+			warning(`      Warning: Policy scoped to a non-existent group (uuid: ${scope.uuid})`);
 		} else {
-			warning(sprintf("      Warning: Cant find scope group '%s' in XL", mapGroupName(scope.displayName)));
+			warning(`      Warning: Cant find scope group '${mapGroupName(scope.displayName)}' in ${_xl}`);
 		}
 		scope.$NOT_FOUND_IN_XL = true;
 		rtn = null;
 	}
 
 	if (numMappings > 1) {
-		warning(sprintf("      Warning: Multiple groups called '%s' found", mapGroupName(scope.displayName)));
+		warning(`      Warning: Multiple groups called '${mapGroupName(scope.displayName)}'`);
 		scope.$NOT_FOUND_IN_XL = true;
 		rtn = null;
 	}
@@ -346,7 +360,7 @@ function mapScope(scope) {
 		if (rtn2 === null) {
 			rtn2 = lib.findInstance(client, "DataCenter", dcName);
 			if (rtn2 === null) {
-				warning(sprintf("      Warning: Cant find DC '%s' in XL", mapGroupName(dcName)));
+				warning(`      Warning: Cant find DC '${mapGroupName(dcName)}' in ${_xl}`);
 				scope.$NOT_FOUND_IN_XL = true;
 				rtn = null;
 			} else {
@@ -460,11 +474,11 @@ function processCustomPolicies() {
 				var mapped = policyMap[key];
 				if (mapped === undefined) {
 					unMappedSettings += 1;
-					warning(sprintf("      Warning: No mapping found for '%v'", key.replace(/\|/g, "::")));
+					warning(`      Warning: No mapping found for '${key.replace(/\|/g, "::")}'`);
 					failed = true;
 				} else if (mapped.warning) {
 					unMappedSettings += 1;
-					warning(sprintf("      Warning: %s", mapped.warning));
+					warning(`      Warning: ${mapped.warning}`);
 					failed = true;
 				} else {
 // TODO: check that the type the same (classic vs xl)
@@ -487,15 +501,15 @@ function processCustomPolicies() {
 			_.keys(xlSettings[manager]).forEach(setting => {
 				var dn = getSettingDisplayName(row.entityType, manager, setting);
 				if (!dn) {
-					error(sprintf("      Error: Setting '%v::%v::%v' is unknown to XL", row.entityType, manager, setting));
+					error(`      Error: Setting '${row.entityType}::${manager}::${setting}' is unknown to ${_xl}`);
 					failed = true;
 				} else {
-					success(sprintf("        %v = %v", dn, xlSettings[manager][setting]));
+					success(`        ${dn} = ${xlSettings[manager][setting]}`);
 				}
 			});
 			if (policy.schedule) {
 				print("      Schedule\n");
-				success(sprintf("        Name = %v", policy.schedule.displayName));
+				success(`        Name = ${policy.schedule.displayName}`);
 			}
 		});
 		if (failed) {
@@ -546,7 +560,7 @@ function processCustomPolicies() {
 				policy.schedule = sh;
 			} catch (ex) {
 				var mesg = ex.message.replace(/^HTTP Status: \d+ - /, "").trimSpace();
-				warning(sprintf("      Warning: Unable to migrate schedule (%v)", mesg));
+				warning(`      Warning: Unable to migrate schedule (${mesg})`);
 				error("      Policy not migrated");
 				return;
 			}

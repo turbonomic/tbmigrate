@@ -1,20 +1,16 @@
-/*
-	TODO
-
-	- How do we handle case sensitivity? Are the rules the same in XL and classic?
-*/
-
-
 /* global colour, title, subtitle, warning, success, note, error */
 
-var F = require("@/functions");
 var lib = require("./libmigrate.js");
+var _classic = lib._classic;
+var _xl = lib._xl;
+
+var F = require("@/functions");
 
 usage = function() {
 	println("");
 	println("Usage is:");
 	println("");
-	println("  tbscript {xl-credentials} migrate-users.js [-pass {password}] {classic-db-file} {xl-db-file}");
+	printf ("  tbscript {%s-credentials} migrate-users.js [-pass {password}] {%s-db-file} {%s-db-file}\n", _xl.toLowerCase(), _classic.toLowerCase(), _xl.toLowerCase());
 	println("");
 	println("  Where:");
 	println("    -pass     Password to use for all new local users (random password used if none specified)");
@@ -134,38 +130,42 @@ classicDb.query("select name, json from users").forEach(row => {
 	});
 
 	if (numFound > 1) {
-		warning("    Warning: more than one matching user found in XL");
+		warning("    Warning: more than one matching user found in "+_xl);
 		return;
 	}
 
 	if (numFound === 1) {
 		var okay = true;
 
+		var w = Math.max(_classic.length, _xl.length);
+		var cc = _classic + ":" + (" ".repeat(w - _classic.length));
+		var xx = _xl + ":" + (" ".repeat(w - _xl.length));
+
 		if (getRole(existingUser) !== getRole(u)) {
 			warning("    Warning: existing user's role doesnt match");
-			warning("      in classic: "+getRole(u));
-			warning("      in XL:      "+getRole(existingUser));
+			warning("      in "+cc+" "+getRole(u));
+			warning("      in "+xx+" "+getRole(existingUser));
 			okay = false;
 		}
 
 		if (getProvider(existingUser) !== getProvider(u)) {
 			warning("    Warning: existing user's login provider doesnt match");
-			warning("      in classic: "+getProvider(u));
-			warning("      in XL:      "+getProvider(existingUser));
+			warning("      in "+cc+" "+getProvider(u));
+			warning("      in "+xx+" "+getProvider(existingUser));
 			okay = false;
 		}
 
 		if (getType(existingUser) !== getType(u)) {
 			warning("    Warning: existing user's login type doesnt match");
-			warning("      in classic: "+getType(u));
-			warning("      in XL:      "+getType(existingUser));
+			warning("      in "+cc+" "+getType(u));
+			warning("      in "+xx+" "+getType(existingUser));
 			okay = false;
 		}
 
 		if (getScope(existingUser) !== getScope(u)) {
 			warning("    Warning: existing user's scope doesnt match");
-			warning("      in classic: "+getScope(u));
-			warning("      in XL:      "+getScope(existingUser));
+			warning("      in "+cc+" "+getScope(u));
+			warning("      in "+xx+" "+getScope(existingUser));
 			okay = false;
 		}
 
@@ -203,6 +203,7 @@ classicDb.query("select name, json from users").forEach(row => {
 		});
 
 		if (!scopeOk) {
+			error("    Skipped");
 			return;
 		}
 
@@ -237,31 +238,35 @@ classicDb.query("select json from user_groups").forEach(row => {
 	});
 
 	if (numFound > 1) {
-		warning("    Warning: more than one matching group found in XL");
+		warning("    Warning: more than one matching group found in "+_xl);
 		return;
 	}
 
 	if (numFound === 1) {
 		var okay = true;
 
+		var w = Math.max(_classic.length, _xl.length);
+		var cc = _classic + ":" + (" ".repeat(w - _classic.length));
+		var xx = _xl + ":" + (" ".repeat(w - _xl.length));
+
 		if (getRole(existingGroup) !== getRole(g)) {
 			warning("    Warning: existing group's role doesnt match");
-			warning("      in classic: "+getRole(g));
-			warning("      in XL:      "+getRole(existingGroup));
+			warning("      in "+cc+" "+getRole(g));
+			warning("      in "+xx+" "+getRole(existingGroup));
 			okay = false;
 		}
 
 		if (getType(existingGroup) !== getType(g)) {
 			warning("    Warning: existing group's login type doesnt match");
-			warning("      in classic: "+getType(g));
-			warning("      in XL:      "+getType(existingGroup));
+			warning("      in "+cc+" "+getType(g));
+			warning("      in "+xx+" "+getType(existingGroup));
 			okay = false;
 		}
 
 		if (getScope(existingGroup) !== getScope(g)) {
 			warning("    Warning: existing group's scope doesnt match");
-			warning("      in classic: "+getScope(g));
-			warning("      in XL:      "+getScope(existingGroup));
+			warning("      in "+cc+" "+getScope(g));
+			warning("      in "+xx+" "+getScope(existingGroup));
 			okay = false;
 		}
 
@@ -292,6 +297,7 @@ classicDb.query("select json from user_groups").forEach(row => {
 		});
 
 		if (!scopeOk) {
+			error("    Skipped");
 			return;
 		}
 

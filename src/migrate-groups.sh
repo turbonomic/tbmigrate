@@ -11,6 +11,11 @@ fi
 export TURBO_FORCE_COLOUR=yes
 
 . ./.env
+export _classic="$branding_classic"
+export _xl="$branding_xl"
+export _vendor="$branding_vendor"
+export _product="$branding_product"
+
 . bin/functions.sh
 
 if [ "$1" = "-i" ]; then
@@ -39,11 +44,15 @@ fi
 phase1() {
 	ready=$(bin/tbscript @null js/db-stats.js groups1Ready 2>/dev/null)
 	if [ "$force" = "false" ] && [ "$ready" != "true" ]; then
-		echo "Not ready to run 'migate-groups.sh 1' yet - refer to the documentation for the correct order"
+		echo "Not ready to run 'migate-groups (1)' yet - refer to the documentation for the correct order"
 		exit 2
 	fi
 
 	roll_logs migrate-groups-1
+
+	if [ "$_xl" = IWO ] && [ ! -s "$xl2_db" ] && [ -s "$xl1_db" ]; then
+		cp "$xl1_db" "$xl2_db"
+	fi
 
 	cd js || exit 2
 	script -q -ec "../bin/tbscript \"$xl_cred\" migrate-groups.js $iopt -skip-scoped-targets \"$classic_db\" \"$xl2_db\"" "$logsdir"/migrate-groups-1.log
@@ -56,7 +65,7 @@ phase1() {
 phase2() {
 	ready=$(bin/tbscript @null js/db-stats.js groups2Ready 2>/dev/null)
 	if [ "$force" = "false" ] && [ "$ready" != "true" ]; then
-		echo "Not ready to run 'migate-groups.sh 2' yet - refer to the documentation for the correct order"
+		echo "Not ready to run 'migate-groups (2)' yet - refer to the documentation for the correct order"
 		exit 2
 	fi
 
@@ -79,7 +88,7 @@ export TURBO_FORCE_COLOUR=yes
 if [ ! -r "$datadir"/tbutil-credentials.json ]; then
 	echo ""
 	echo "File not found: $datadir/tbutil-credentials.json"
-	echo "It looks as if you havent run 'sh setup.sh' yet."
+	echo "It looks as if you havent run 'setup' yet."
 	echo ""
 	exit 2
 fi

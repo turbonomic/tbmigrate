@@ -15,6 +15,22 @@ _.keys(exports.nameMap.target_cooker_script_map).forEach(typ => {
 var groupClassRe = new RegExp(exports.nameMap.group_class_re);
 
 // =====================================================================================
+// Strings for the names of the two instances (for branding).
+
+exports._classic = getenv("branding_classic") || "Classic";
+exports._xl      = getenv("branding_xl") || "XL";
+exports._vendor  = getenv("branding_vendor") || "Turbonomic";
+
+exports.cookString = function(str) {
+	var map = {
+		xl: exports._xl,
+		classic: exports._classic,
+		vendor: exports._vendor
+	};
+	return str.template(map, {});
+};
+
+// =====================================================================================
 
 exports.isAGroup = function(e) {
 	return groupClassRe.test(e.className);
@@ -305,6 +321,8 @@ exports.createTargetTables = function(db) {
 
 	db.exec("create table target_scopes (targetUuid, fieldName, groupUuid, found)");
 
+	// This is used when migrating to IWO
+	db.exec("create table target_uuid_mapping (classicUuid, xlUuid)");
 };
 
 
@@ -319,13 +337,26 @@ exports.getTargetName = function(t) {
 		fields[f.name] = f.value;
 	});
 
+	names.sort();
+
 	var name = names.join(", ");
+	// Check IWO options
+	try { if (!name) { name = t.iwoInfo.Name; } } catch(ex) { }
+	try { if (!name) { name = t.iwoInfo.Connections[0].ManagementAddress; } } catch(ex) { }
+
+	// Standard options
 	if (!name) { name = fields.address; }
 	if (!name) { name = fields.nameOrAddress; }
 	if (!name) { name = fields.targetId; }
 	if (!name) { name = fields.targetIdentifier; }
-
 	if (!name && t.displayName) { name = t.displayName; }
+
+	// Some more IWO options
+	if (!name) { name = fields.name; }
+	if (!name) { name = fields.enrollmentNumber; }
+
+	// last resort - use the UUID
+	if (!name) { name = t.uuid; }
 
 	return name;
 };
@@ -389,6 +420,8 @@ exports.saveTargetScope = function(db, targetUuid, fieldName, groupUuid, found) 
 	]);
 };
 
+
+
 // Does the target exist?
 exports.targetExists = function(db, name, type) {
 	db.query("select count(*) n from targets where lower(name) = lower(?) and type = ?", [name, type]).forEach(row => {
@@ -396,6 +429,17 @@ exports.targetExists = function(db, name, type) {
 	});
 	return got > 0;
 };
+
+
+// These is used when migrating to IWO
+exports.clearTargetMapping = function(db) {
+	db.exec("delete from target_uuid_mapping");
+};
+
+exports.saveTargetMapping = function(db, classicUuid, xlUuid) {
+	db.exec("replace into target_uuid_mapping values(?, ?)", [ classicUuid, xlUuid ]);
+};
+
 
 // =====================================================================================
 
@@ -426,6 +470,7 @@ exports.saveTargetExtra = function(db, t) {
 		JSON.stringify(t)
 	]);
 };
+
 
 // =====================================================================================
 
@@ -499,7 +544,7 @@ exports.saveSettingsMapping = function(db, classicUuid, xlUuid) {
 };
 
 
-exports.disableAllActions = function(client, db) {
+exports.disableAllActions = function(client_, db) {
 	var ok = false;
 	db.query(`select json from settings_types where entityType = "ServiceEntity" and isDefault = 1`).forEach(row => {
 		var s = JSON.parse(row.json);
@@ -513,7 +558,7 @@ exports.disableAllActions = function(client, db) {
 				}
 			});
 		if (ok) {
-			client.editSettingsPolicy(s.uuid, {}, s);
+			client_.editSettingsPolicy(s.uuid, {}, s);
 			exports.saveSettingsPolicy(db, s, false);
 		}
 	});
@@ -837,38 +882,55 @@ exports.findEntityInXl = function(classicDb, xlDb, nameMap, e) {
 
 	// Get the targetUuid and name in classic
 
-	var targetUuid = (e.discoveredBy || e.source || {}).uuid;
+	var classicTargetUuid = (e.discoveredBy || e.source || {}).uuid;
 
 	// "special case" logic for Azure accounts..
 
-	if (!targetUuid && e.className === "BusinessAccount" && e.cloudType === "AZURE" && (e.targets || []).length === 1 && e.targets[0].type === "Azure") {
-		targetUuid = e.targets[0].uuid;
+	if (!classicTargetUuid && e.className === "BusinessAccount" && e.cloudType === "AZURE" && (e.targets || []).length === 1 && e.targets[0].type === "Azure") {
+		classicTargetUuid = e.targets[0].uuid;
 	}
 
 	// Find the target name in classic
 
-	var targetName = null;
+	var classicTargetName = null;
+	var xlTargetName = null;
 	var xlTargetUuid = null;
 	var xlTargetStatus = null;
-	if (targetUuid) {
-		classicDb.query("select name from targets where uuid = ?", [targetUuid]).forEach(row => {
-			targetName = row.name;
+
+	if (classicTargetUuid) {
+		// determine the target name in classic
+
+		classicDb.query("select name from targets where uuid = ?", [classicTargetUuid]).forEach(row => {
+			classicTargetName = row.name;
 		});
-		if (!targetName) {
-			classicDb.query("select name from derived_targets where uuid = ?", [targetUuid]).forEach(row => {
-				targetName = row.name;
+		if (!classicTargetName) {
+			classicDb.query("select name from derived_targets where uuid = ?", [classicTargetUuid]).forEach(row => {
+				classicTargetName = row.name;
 			});
 		}
-		if (targetName) {
-			xlDb.query("select uuid, json from targets where name = ?", [targetName]).forEach(row => {
-				xlTargetUuid = row.uuid;
+
+		// if XL is IWO, then we could have the manually editted mapping table to try first..
+		xlDb.query("select xlUuid from target_uuid_mapping where classicUuid = ?", [classicTargetUuid]).forEach(row => {
+			xlTargetUuid = row.xlUuid;
+		});
+
+		if (xlTargetUuid) {
+			xlDb.query("select name, json from targets where uuid = ?", [xlTargetUuid]).forEach(row => {
+				xlTargetName = row.name;
 				xlTargetStatus = JSON.parse(row.json).status;
 			});
-			if (!xlTargetUuid) {
-				xlDb.query("select uuid, json from derived_targets where name = ?", [targetName]).forEach(row => {
+		} else {
+			if (classicTargetName) {
+				xlDb.query("select uuid, json from targets where lower(name) = ?", [classicTargetName.toLowerCase()]).forEach(row => {
 					xlTargetUuid = row.uuid;
 					xlTargetStatus = JSON.parse(row.json).status;
 				});
+				if (!xlTargetUuid) {
+					xlDb.query("select uuid, json from derived_targets where lower(name) = ?", [classicTargetName.toLowerCase()]).forEach(row => {
+						xlTargetUuid = row.uuid;
+						xlTargetStatus = JSON.parse(row.json).status;
+					});
+				}
 			}
 		}
 	}
@@ -911,20 +973,28 @@ exports.findEntityInXl = function(classicDb, xlDb, nameMap, e) {
 		}
 	}
 
-	if (xlTargetStatus && targetName && xlTargetStatus !== "Validated") {
-		var err1 = new Error(sprintf("Entity '%s::%s' not found (target '%s' not validated)", xlClass, xlDispName, targetName));
+	if (xlTargetStatus && xlTargetName && xlTargetStatus !== "Validated") {
+		var err0 = new Error(sprintf("Entity '%s::%s' not found (target '%s' not validated)", xlClass, xlDispName, xlTargetName));
+		err0.noTarget = true;
+		throw err0;
+	} else if (xlTargetStatus && classicTargetName && xlTargetStatus !== "Validated") {
+		var err1 = new Error(sprintf("Entity '%s::%s' not found (target '%s' not validated)", xlClass, xlDispName, classicTargetName));
 		err1.noTarget = true;
 		throw err1;
-	} else if (targetName && !xlTargetUuid) {
-		var err2 = new Error(sprintf("Entity '%s::%s' not found (target '%s' not migrated)", xlClass, xlDispName, targetName));
+	} else if (xlTargetName && !xlTargetUuid) {
+		var err6 = new Error(sprintf("Entity '%s::%s' not found (target '%s' not migrated)", xlClass, xlDispName, xlTargetName));
+		err6.noTarget = true;
+		throw err6;
+	} else if (classicTargetName && !xlTargetUuid) {
+		var err2 = new Error(sprintf("Entity '%s::%s' not found (target '%s' not migrated)", xlClass, xlDispName, classicTargetName));
 		err2.noTarget = true;
 		throw err2;
 	} else if (e.className === "Storage" && (e.discoveredBy || {}).type === "Azure") {
-		var err4 = new Error(sprintf("Entity '%s::%s' not found (Azure Storage objects not implemented in XL)", xlClass, xlDispName));
+		var err4 = new Error(sprintf("Entity '%s::%s' not found (Azure Storage objects not implemented in %s)", xlClass, xlDispName, exports._xl));
 		err4.unsupported = true;
 		throw err4;
 	} else if (e.className === "Application" && e.displayName.hasPrefix("GuestLoad")) {
-		var err5 = new Error(sprintf("Entity '%s::%s' not found (GuestLoad objects not implemented in XL)", xlClass, xlDispName));
+		var err5 = new Error(sprintf("Entity '%s::%s' not found (GuestLoad objects not implemented in %s)", xlClass, xlDispName, exports._xl));
 		err5.unsupported = true;
 		throw err5;
 	} else {
@@ -936,20 +1006,20 @@ exports.findEntityInXl = function(classicDb, xlDb, nameMap, e) {
 
 // =====================================================================================
 
-exports.getInstancesOfType = function(client, types, func) {
+exports.getInstancesOfType = function(client_, types, func) {
 	var opts = { types: types.join(",") };
-	return client.paginate("getSearchResults", opts, func);
+	return client_.paginate("getSearchResults", opts, func);
 };
 
-exports.getInstancesUsingQuery = function(client, envType, types, q, func) {
-	if (client._byNameCriteria === null) {
-		client._byNameCriteria = { };
-		var data = client.getGroupBuilderUsecases();
+exports.getInstancesUsingQuery = function(client_, envType, types, q, func) {
+	if (client_._byNameCriteria === null) {
+		client_._byNameCriteria = { };
+		var data = client_.getGroupBuilderUsecases();
 		var classes = _.keys(data);
 		classes.forEach(t => {
 			data[t].criteria.forEach(c => {
 				if (c.filterType.hasSuffix("ByName")) {
-					client._byNameCriteria[t] = c.filterType;
+					client_._byNameCriteria[t] = c.filterType;
 				}
 			});
 		});
@@ -958,7 +1028,7 @@ exports.getInstancesUsingQuery = function(client, envType, types, q, func) {
 	var count = 0;
 
 	types.forEach(type => {
-		var filterType = client._byNameCriteria[type];
+		var filterType = client_._byNameCriteria[type];
 		if (!filterType) {
 			throw new Error("getInstancesUsingQuery: unsupported type: "+type);
 		}
@@ -978,24 +1048,32 @@ exports.getInstancesUsingQuery = function(client, envType, types, q, func) {
 
 		var opts = {
 			ascending: true,
-			disable_hateoas: true,
-			limit: 100,
-			order_by: "name"
+			limit: 400,
 		};
 
-		count += client.paginate("getMembersBasedOnCriteria", opts, body, func);
+		var enums = client_.getMembersBasedOnCriteria.apiInfo.queryArgs.order_by.enum;
+		if (enums.contains("name")) {
+			opts.order_by = "name";
+		} else if (enums.contains("NAME")) {
+			opts.order_by = "NAME";
+		} else {
+			throw new Error("cant find supported 'order_by' value");
+		}
+
+		count += client_.paginate("getMembersBasedOnCriteria", opts, body, func);
 	});
 
 	return count;
 };
 
-exports.findInstance = function(client, type, name) {
+exports.findInstance = function(client_, type, name) {
 	var found = [ ];
-	this.getInstancesUsingQuery(client, null, [ type ], name. quoteRegexpMeta(true), e => {
+	this.getInstancesUsingQuery(client_, null, [ type ], name.quoteRegexpMeta(true), e => {
 		found.push(e);
 	});
 	return found.length === 1 ? found[0] : null;
 };
+
 
 // =====================================================================================
 // Define some global functions.
