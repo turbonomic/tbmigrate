@@ -5,7 +5,7 @@
 | Tool Version | 4.1 |
 | Relased | 20th August 2021 |
 | Download From | https://github.com/turbonomic/tbmigrate/raw/4.1/dist/tbmigrate-4.1.tgz |
-| MD5 Check sum | 127dde44f00902bb05c2325a74092897 |
+| MD5 Check sum | 8a88c8c30ba84394328dc68500e08a62 |
 
 ## Compatibility
 
@@ -34,10 +34,10 @@ The session will look like this...
 100 15.4M  100 15.4M    0     0  19.7M      0 --:--:-- --:--:-- --:--:-- 29.8M
 
 [root@turbonomic tmp] md5sum tbmigrate-4.1.tgz
-127dde44f00902bb05c2325a74092897  tbmigrate-4.1.tgz
+8a88c8c30ba84394328dc68500e08a62  tbmigrate-4.1.tgz
 ```
 
-The string `127dde44f00902bb05c2325a74092897` in the last line is important - it tells you that the file has been downloaded correctly. If you have a different value there, then something has gone wrong.
+The string `8a88c8c30ba84394328dc68500e08a62` in the last line is important - it tells you that the file has been downloaded correctly. If you have a different value there, then something has gone wrong.
 
 ## If your V6.4 instance does NOT have access to the internet
 
@@ -52,5 +52,5 @@ A typical approach would be...
 5. Type the following commands..
    * `cd /tmp`
    * `md5sum tbmigrate-4.1.tgz`
-6. Check that you see the string `127dde44f00902bb05c2325a74092897` - that means that the file has been downloaded correctly.
+6. Check that you see the string `8a88c8c30ba84394328dc68500e08a62` - that means that the file has been downloaded correctly.
 
