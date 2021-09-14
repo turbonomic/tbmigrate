@@ -1,11 +1,10 @@
-Version 4.1
-Fri 20 Aug 10:51:14 BST 2021
+Version 4.2
+Tue 14 Sep 11:47:39 BST 2021
 BINS_DIR = /home/turbo/gopath/bin/static
-commit cfcffffa46c2800beb5103ea8d10573e331fdafb (HEAD -> master, origin/master, origin/HEAD)
+commit 71ae98c8759e1789f33b97139cae21a9457d241c (HEAD -> master, tag: 2.0j)
 Author: Chris Lowth <chris.lowth@turbonomic.com>
-Date:   Fri Aug 20 10:08:59 2021 +0100
+Date:   Tue Sep 14 10:59:41 2021 +0100
 
-    TbMigrate 4.1
+    Documentation cleanup.
     
-    Fixes to tbmigrate REVIEW docs.
-    Added "screenshot" command to tbutil (experimental - do not use in production).
+    Including: removal of PDF copies of docs.

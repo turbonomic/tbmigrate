@@ -302,6 +302,16 @@ function getManagerDisplayName(type, uuid) {
 	return rtn;
 }
 
+
+var cachedSettingsSpecs = null;
+function getSettingsSpecs() {
+	if (!cachedSettingsSpecs) {
+		cachedSettingsSpecs = client.getSettingsSpecs({});
+	}
+	return cachedSettingsSpecs;
+}
+
+
 function getSettingDisplayName(type, smUuid, uuid) {
 	var rtn = null;
 
@@ -314,6 +324,19 @@ function getSettingDisplayName(type, smUuid, uuid) {
 			});
 		}
 	});
+
+	// that didnt work - let's try another way..
+	if (rtn === null) {
+		try {
+			return getSettingsSpecs().
+				filter(u => (u.uuid === smUuid))[0].
+				settings.
+				filter(s => (s.entityType === type && s.uuid === uuid))[0].
+				displayName;
+		} catch (ex) {
+			return null;
+		}
+	}
 
 	return rtn;
 }

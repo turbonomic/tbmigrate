@@ -1,9 +1,9 @@
 
-### TbMigrate 4.1
+### TbMigrate 4.2
 
 # Version compatibility
 
-This release of the migration tool is for use with Turbonomic version 8.3.0 or later.
+This release of the migration tool has been tested with Turbonomic version 8.3.0 or later.
 
 For migrating to 8.2.x releases, please use [version 3.15 of "TbMigrate"](https://github.com/turbonomic/tbmigrate/blob/3.15/README.md)
 
