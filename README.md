@@ -8,6 +8,15 @@ _The TbMigrate tool, provided here, assists in migrating configuration from a Tu
 _If, however you need a way to migrate configuration from one Turbonomic V8 instance to another, then you should use the [TbUtil HOT-WARM tool](https://github.com/turbonomic/tbutil/wiki/K8S-HOTWARM) in "single-shot" mode instead (although, that is not its primary use case)._
 
 
+# Note: Issues caused by proxy configuration.
+
+Some customers have reported (January 2022) that the setting of credentials for the XL instance may fail when a proxy is configured in the classic instance. If you get "EOF", "context deadline exceeded" or similar errors when setting the XL instance credentials then exit the utility (press control-C), run the following command and then try running it again. If you log out and back in the error will resurface so you will need to repeat this step.
+
+```
+export http_proxy="" HTTP_PROXY="" https_proxy="" HTTPS_PROXY=""
+```
+
+
 # Version compatibility
 
 This release of the migration tool has been tested with Turbonomic version 8.3.0 or later.

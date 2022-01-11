@@ -57,6 +57,7 @@ To be safe, wait for at least another 20 minutes before moving to step 4 (or 7).
 
 Because Turbonomic 8 has different dynamic group filters than Turbonomic 7, some legacy groups may not supported in Turbonomic 8 and will need to be recreated using the new filters.
 
+
 ## Why are some elements reported as "not found" during group migration?
 
 There are several possible reasons for this.
@@ -66,11 +67,22 @@ There are several possible reasons for this.
 * The target may have failed to discover in Turbonomic 8.
 * The element may not longer be supported (for example: GuestLoad)
 
+
 ## What happens if the SSH connection breaks mid-way through the migration?
 
 It depends on when this happens. But generally, it is not great news. You may be able to recover by restarting the step at which the failure occurred – but you need to make sure that the old copy of the tool is not still running first.
 Avoid the problem using the old DevOps favourite utility: ["screen"](https://blog.turbonomic.com/why-the-screen-utility-will-change-your-remote-ssh-approach).
 
+
 ## How can I check the results of the migration?
 
 Detailed notes on reviewing the migration [can be read here](src/REVIEW-CLASSIC_TO_XL.md).
+
+
+## How can I fix errors when configuring credentials for the XL instance?
+
+Some customers have reported (January 2022) that the setting of credentials for the XL instance may fail when a proxy is configured in the classic instance. If you get "EOF", "context deadline exceeded" or similar errors when setting the XL instance credentials then exit the utility (press control-C), run the following command and then try running it again. If you log out and back in the error will resurface so you will need to repeat this step.
+
+```
+export http_proxy="" HTTP_PROXY="" https_proxy="" HTTPS_PROXY=""
+```
