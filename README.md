@@ -19,17 +19,27 @@ export http_proxy="" HTTP_PROXY="" https_proxy="" HTTPS_PROXY=""
 
 # Version compatibility
 
-This release of the migration tool has been tested with Turbonomic version 8.3.0 or later.
+This release of the migration tool has been tested with Turbonomic versions 8.3.0 (CWOM 3.1.0) and 8.4.0 (CWOM 3.2.0).
 
-For migrating to 8.2.x releases, please use [version 3.15 of "TbMigrate"](https://github.com/turbonomic/tbmigrate/blob/3.15/README.md)
+For migrating to 8.2.x (CWOM 3.0.x) releases, please use [version 3.15 of "TbMigrate"](https://github.com/turbonomic/tbmigrate/blob/3.15/README.md)
+
+For migrating to releases after 8.4.0 (CWOM 3.2.0), we **highly** recommend the following work flow..
+
+1. Install Turbonomic 8.4.0 (CWOM 3.2.0)
+2. Run the migration to completion.
+3. Update to the latest release
+
+For release 8.5.0 (CWOM 3.3.0) and later, the above approach is mandatory.
+
 
 # Documentation
 
-The documentation for this tool can be found in the Appendix with the title "Migrating Turbonomic From Classic to XL" in the Turbonomic 8.3.0 (or later) installation guide. See: http://docs.turbonomic.com.
+The documentation for this tool can be found in the Appendix with the title "Migrating Turbonomic From Classic to XL" in the Turbonomic 8.4.0 installation guide. See: http://docs.turbonomic.com.
 
 The FAQ (Frequenty Asked Questions) document [can be read here](FAQ.md).
 
 Notes on reviewing the migration results [can be read here](src/REVIEW-CLASSIC_TO_XL.md).
+
 
 # Downloading
 
